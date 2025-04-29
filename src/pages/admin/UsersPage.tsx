@@ -174,7 +174,7 @@ export function UsersPage() {
                 <SelectValue placeholder="Seleccionar rol" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos los roles</SelectItem>
+                <SelectItem value="all">Todos los roles</SelectItem>
                 {Object.entries(roleLabels).map(([value, label]) => (
                   <SelectItem key={value} value={value}>
                     {label}
