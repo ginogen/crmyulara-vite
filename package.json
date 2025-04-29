@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "./node_modules/.bin/tsc --noEmit && ./node_modules/.bin/tsc -p tsconfig.build.json && vite build",
+    "build": "npx tsc --noEmit && npx tsc -p tsconfig.build.json && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
