@@ -24,3 +24,7 @@ dist-ssr
 *.sw?
 
 src/**/*.d.ts
+
+# Netlify
+.netlify/state.json
+.netlify/edge-functions-import-map.json
