@@ -8,6 +8,7 @@ import { formatDate } from '@/lib/utils/dates';
 import { useContacts } from '@/hooks/useContacts';
 import { WhatsAppModal, ContactManagementModal, TagsModal, ContactModal } from '@/components/modals';
 import Select from 'react-select';
+import { SingleValue } from 'react-select';
 
 // Definir los tipos que necesitamos
 type UserRole = 'super_admin' | 'org_admin' | 'branch_manager' | 'sales_agent';
@@ -447,7 +448,7 @@ export function ContactsPage() {
                   ...tags.map(tag => ({ value: tag.name, label: tag.name }))
                 ]}
                 value={selectedTag ? { value: selectedTag.name, label: selectedTag.name } : { value: '', label: 'Todas las etiquetas' }}
-                onChange={(option) => {
+                onChange={(option: { value: string; label: string } | null) => {
                   if (option) {
                     const tag = tags.find(t => t.name === option.value);
                     if (tag) {
@@ -483,7 +484,7 @@ export function ContactsPage() {
                     { value: filters.assignedTo, label: agents.find(agent => agent.id === filters.assignedTo)?.full_name } :
                     { value: 'all', label: 'Todos los agentes' }
                   }
-                  onChange={(option) => handleFilterChange('assignedTo', option?.value || '')}
+                  onChange={(newValue: SingleValue<{ value: string; label: string | undefined }>) => handleFilterChange('assignedTo', newValue?.value || '')}
                   className="text-xs"
                   classNamePrefix="select"
                   placeholder="Seleccionar agente..."

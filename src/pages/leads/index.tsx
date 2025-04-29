@@ -7,7 +7,7 @@ import { generateInquiryNumber } from '@/lib/utils/strings';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLeads } from '@/hooks/useLeads';
 import { LeadModal, LeadHistoryModal, LeadTasksModal } from '@/components/modals';
-import Select from 'react-select';
+import Select, { SingleValue, ActionMeta } from 'react-select';
 import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
@@ -107,7 +107,7 @@ export function LeadsPage() {
         
         if (error) throw error;
         
-        const leadIdsWithTasks = new Set(data.map(task => task.related_to_id));
+        const leadIdsWithTasks = new Set<string>(data.map((task: { related_to_id: string }) => task.related_to_id));
         setLeadsWithTasks(leadIdsWithTasks);
       } catch (error) {
         console.error('Error al obtener leads con tareas:', error);
@@ -399,7 +399,7 @@ export function LeadsPage() {
                 }))
               ]}
               value={filters.status ? { value: filters.status, label: statusLabels[filters.status as Lead['status']] } : { value: 'all', label: 'Todos los estados' }}
-              onChange={(option) => handleFilterChange('status', option?.value || '')}
+              onChange={(option: { value: string; label: string } | null) => handleFilterChange('status', option?.value || '')}
               className="text-xs"
               classNamePrefix="select"
               placeholder="Seleccionar estado..."
@@ -422,7 +422,8 @@ export function LeadsPage() {
                   { value: filters.assignedTo, label: agents.find(agent => agent.id === filters.assignedTo)?.full_name } :
                   { value: 'all', label: 'Todos los agentes' }
                 }
-                onChange={(option) => handleFilterChange('assignedTo', option?.value || '')}
+                onChange={(newValue: SingleValue<{ value: string; label: string | undefined }>, actionMeta: ActionMeta<{ value: string; label: string | undefined }>) => 
+                  handleFilterChange('assignedTo', newValue?.value || '')}
                 className="text-xs"
                 classNamePrefix="select"
                 placeholder="Seleccionar agente..."

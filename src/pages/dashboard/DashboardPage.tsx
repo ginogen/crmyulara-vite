@@ -111,8 +111,8 @@ export default function DashboardPage() {
 
         // Obtenemos los leads relacionados
         const leadIds = tasks
-          .filter(task => task.related_to_type === 'lead')
-          .map(task => task.related_to_id);
+          .filter((task: { related_to_type: string; related_to_id: string }) => task.related_to_type === 'lead')
+          .map((task: { related_to_id: string }) => task.related_to_id);
 
         const { data: leads } = await supabase
           .from('leads')
@@ -121,8 +121,8 @@ export default function DashboardPage() {
 
         // Obtenemos los contactos relacionados
         const contactIds = tasks
-          .filter(task => task.related_to_type === 'contact')
-          .map(task => task.related_to_id);
+          .filter((task: { related_to_type: string; related_to_id: string }) => task.related_to_type === 'contact')
+          .map((task: { related_to_id: string }) => task.related_to_id);
 
         const { data: contacts } = await supabase
           .from('contacts')
@@ -130,18 +130,28 @@ export default function DashboardPage() {
           .in('id', contactIds);
 
         // Combinamos la información
-        const allTasks = tasks.map(task => {
+        const allTasks = tasks.map((task) => {
           if (task.related_to_type === 'lead') {
-            const lead = leads?.find(l => l.id === task.related_to_id);
+            const lead = leads?.find((l) => l.id === task.related_to_id);
             return {
-              ...task,
+              id: task.id,
+              title: task.title,
+              description: task.description,
+              due_date: task.due_date,
+              related_to_type: task.related_to_type,
+              related_to_id: task.related_to_id,
               related_name: lead?.full_name || 'Lead sin nombre',
               related_info: lead?.inquiry_number || ''
             };
           } else {
-            const contact = contacts?.find(c => c.id === task.related_to_id);
+            const contact = contacts?.find((c) => c.id === task.related_to_id);
             return {
-              ...task,
+              id: task.id,
+              title: task.title,
+              description: task.description,
+              due_date: task.due_date,
+              related_to_type: task.related_to_type,
+              related_to_id: task.related_to_id,
               related_name: contact?.full_name || 'Contacto sin nombre',
               related_info: contact?.phone || ''
             };
