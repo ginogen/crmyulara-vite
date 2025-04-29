@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "npm run build && tsc -p tsconfig.build.json",
   "devCommand": "npm run dev",
   "installCommand": "npm install",
   "framework": "vite",
