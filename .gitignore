@@ -23,7 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 
+# TypeScript declaration files
 src/**/*.d.ts
+**/*.d.ts
 
 # Netlify
 .netlify/state.json

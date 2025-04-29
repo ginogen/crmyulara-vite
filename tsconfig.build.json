@@ -1,11 +1,11 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "noEmit": false,
+    "noEmit": true,
     "declaration": false,
     "emitDeclarationOnly": false,
     "outDir": "dist/types"
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "exclude": ["node_modules", "dist", "**/*.d.ts", "src/types/**/*.d.ts"]
+  "exclude": ["node_modules", "dist", "**/*.d.ts", "src/types/**/*.d.ts", "src/**/*.d.ts"]
 } 
