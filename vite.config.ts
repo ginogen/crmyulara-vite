@@ -8,7 +8,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@/components/ui/select': path.resolve(__dirname, './src/components/ui/select.tsx'),
     },
     extensions: ['.js', '.jsx', '.ts', '.tsx', '.json']
   },
@@ -16,11 +15,27 @@ export default defineConfig({
     sourcemap: true,
     rollupOptions: {
       output: {
-        manualChunks: undefined,
+        manualChunks: {
+          'radix-ui': [
+            '@radix-ui/react-select',
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-label',
+            '@radix-ui/react-separator',
+            '@radix-ui/react-slot',
+            '@radix-ui/react-tabs',
+            '@radix-ui/react-avatar',
+            '@radix-ui/react-checkbox',
+            '@radix-ui/react-dropdown-menu',
+            '@radix-ui/react-popover'
+          ]
+        }
       },
     },
   },
   optimizeDeps: {
     include: ['@radix-ui/react-select', '@radix-ui/react-dialog', '@radix-ui/react-label', '@radix-ui/react-separator', '@radix-ui/react-slot', '@radix-ui/react-tabs', '@radix-ui/react-avatar', '@radix-ui/react-checkbox', '@radix-ui/react-dropdown-menu', '@radix-ui/react-popover']
+  },
+  esbuild: {
+    jsxInject: `import React from 'react'`
   }
 })
