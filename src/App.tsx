@@ -12,7 +12,6 @@ import DashboardPage from '@/pages/dashboard/DashboardPage';
 import { ContactsPage } from '@/pages/contacts/ContactsPage';
 import { LeadsPage } from '@/pages/leads/index';
 import { BudgetsPage } from '@/pages/budgets/BudgetsPage';
-import { InboxPage } from '@/pages/inbox/InboxPage';
 import { AdminPage } from '@/pages/admin/AdminPage';
 import { OrganizationsPage } from '@/pages/admin/OrganizationsPage';
 import { BranchesPage } from '@/pages/admin/BranchesPage';
@@ -75,14 +74,6 @@ const App = () => {
           element={
             <ProtectedRoute>
               <BudgetsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/inbox"
-          element={
-            <ProtectedRoute>
-              <InboxPage />
             </ProtectedRoute>
           }
         />

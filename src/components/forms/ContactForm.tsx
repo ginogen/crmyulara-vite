@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Contact } from '@/types/supabase';
 import { isValidEmail, isValidPhone } from '@/lib/utils/validations';
-import { Button } from "@/components/ui/Button"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -167,18 +167,24 @@ export const ContactForm = ({ contact, onSubmit, onCancel, tags }: ContactFormPr
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="tag">Etiqueta</Label>
+              <Label htmlFor="tag" className="text-sm font-medium text-gray-700">
+                Etiqueta
+              </Label>
               <Select
-                id="tag"
-                value={tags.find(tag => tag.name === formData.tag) || null}
-                onChange={(option) => setFormData({ ...formData, tag: option?.name || '' })}
-                options={tags}
-                getOptionLabel={(option) => option.name}
-                getOptionValue={(option) => option.name}
-                placeholder="Seleccionar etiqueta..."
-                isClearable
-                isSearchable
-              />
+                value={formData.tag}
+                onValueChange={(value) => setFormData({ ...formData, tag: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar etiqueta" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tags.map((tag) => (
+                    <SelectItem key={tag.id} value={tag.name}>
+                      {tag.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardContent>

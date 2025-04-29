@@ -7,7 +7,6 @@ import {
 } from "@/components/ui/dialog"
 import { Contact } from '@/types/supabase';
 import { ContactForm } from '@/components/forms/ContactForm';
-import { Button } from "@/components/ui/Button"
 import { Card } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 

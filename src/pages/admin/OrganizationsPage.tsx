@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/Select';
+import { Select } from '@/components/ui/select';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { OrganizationModal } from '@/components/modals/OrganizationModal';
@@ -28,8 +28,6 @@ const statusColors: Record<Organization['status'], { bg: string; text: string }>
   inactive: { bg: 'bg-red-100', text: 'text-red-800' },
 };
 
-type UserRole = 'super_admin' | 'org_admin' | 'branch_manager' | 'sales_agent';
-
 export function OrganizationsPage() {
   const [filters, setFilters] = useState({
     status: '',
@@ -41,7 +39,6 @@ export function OrganizationsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const { user } = useAuth();
-  const userRole = 'super_admin';
   const supabase = createClient();
 
   useEffect(() => {
@@ -129,7 +126,7 @@ export function OrganizationsPage() {
     return matchesStatus && matchesSearch;
   });
 
-  if (!user || userRole !== 'super_admin') {
+  if (!user) {
     return (
       <div className="text-center py-12">
         <h2 className="text-2xl font-semibold text-gray-900">Acceso Denegado</h2>

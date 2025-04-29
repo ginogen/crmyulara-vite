@@ -124,7 +124,12 @@ export default function Dashboard() {
           <ContactList
             contacts={contacts}
             onSelect={setSelectedContact}
-            onDelete={deleteContact}
+            onDelete={(id) => new Promise<void>((resolve, reject) => {
+              deleteContact.mutate(id, {
+                onSuccess: () => resolve(),
+                onError: (error) => reject(error)
+              });
+            })}
           />
         </div>
         <div>
@@ -132,15 +137,27 @@ export default function Dashboard() {
             {selectedContact ? 'Editar Contacto' : 'Nuevo Contacto'}
           </h2>
           <ContactForm
-            initialData={selectedContact ? contacts.find(c => c.id === selectedContact) : undefined}
+            contact={selectedContact ? contacts.find(c => c.id === selectedContact) : undefined}
             onSubmit={async (data) => {
               if (selectedContact) {
-                await updateContact(selectedContact, data);
+                await new Promise<void>((resolve, reject) => {
+                  updateContact.mutate({ id: selectedContact, ...data }, {
+                    onSuccess: () => resolve(),
+                    onError: (error) => reject(error)
+                  });
+                });
               } else {
-                await createContact(data);
+                await new Promise<void>((resolve, reject) => {
+                  createContact.mutate(data, {
+                    onSuccess: () => resolve(),
+                    onError: (error) => reject(error)
+                  });
+                });
               }
               setSelectedContact(null);
             }}
+            onCancel={() => setSelectedContact(null)}
+            tags={[]} // TODO: Implementar la obtención de tags
           />
         </div>
       </div>

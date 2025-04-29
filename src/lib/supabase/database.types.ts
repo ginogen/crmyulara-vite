@@ -207,6 +207,41 @@ export interface Database {
           created_at?: string
         }
       }
+      budgets: {
+        Row: {
+          id: string
+          title: string
+          description: string
+          amount: number
+          status: 'draft' | 'pending' | 'approved' | 'rejected'
+          assigned_to: string
+          organization_id: string
+          branch_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          description: string
+          amount: number
+          status: 'draft' | 'pending' | 'approved' | 'rejected'
+          assigned_to: string
+          organization_id: string
+          branch_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          description?: string
+          amount?: number
+          status?: 'draft' | 'pending' | 'approved' | 'rejected'
+          assigned_to?: string
+          organization_id?: string
+          branch_id?: string
+          created_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never

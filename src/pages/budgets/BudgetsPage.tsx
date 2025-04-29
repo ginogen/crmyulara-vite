@@ -1,17 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { BudgetForm } from '@/components/forms/BudgetForm';
 import { Modal } from '@/components/ui/Modal';
 import { useBudgets } from '@/hooks/useBudgets';
-import { Budget } from '@/types/budget';
+import type { Budget } from '@/types';
 
 export function BudgetsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { budgets, isLoading, createBudget, updateBudget, deleteBudget } = useBudgets();
+  const { budgets, isLoading, createBudget } = useBudgets();
 
   const handleSubmit = async (data: Partial<Budget>) => {
     try {
-      await createBudget(data);
+      await createBudget.mutateAsync(data);
       setIsModalOpen(false);
     } catch (error) {
       console.error('Error al crear presupuesto:', error);
@@ -36,7 +36,7 @@ export function BudgetsPage() {
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Contacto
+                Título
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Monto
@@ -53,7 +53,7 @@ export function BudgetsPage() {
             {budgets.map((budget) => (
               <tr key={budget.id}>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  {budget.contact_id}
+                  {budget.title}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   ${budget.amount}
@@ -75,7 +75,10 @@ export function BudgetsPage() {
         onClose={() => setIsModalOpen(false)}
         title="Nuevo Presupuesto"
       >
-        <BudgetForm onSubmit={handleSubmit} />
+        <BudgetForm 
+          onSubmit={handleSubmit} 
+          onCancel={() => setIsModalOpen(false)}
+        />
       </Modal>
     </div>
   );

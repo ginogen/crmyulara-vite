@@ -1,6 +1,18 @@
-import type { Database } from '../../lib/supabase/database.types';
-
-type Lead = Database['public']['Tables']['leads']['Row'];
+interface Lead {
+  id: string;
+  inquiry_number: string;
+  full_name: string;
+  status: 'new' | 'assigned' | 'contacted' | 'followed' | 'interested' | 'reserved' | 'liquidated' | 'effective_reservation';
+  email: string;
+  phone: string;
+  source: string;
+  created_at: string;
+  assigned_to: string | null;
+  notes: string | null;
+  converted_to_contact: boolean | null;
+  pax_count: number;
+  estimated_travel_date: string;
+}
 
 interface LeadListProps {
   leads: Lead[];
@@ -55,9 +67,9 @@ export function LeadList({ leads, onEdit, onDelete }: LeadListProps) {
                   <p className="flex items-center text-sm text-gray-500">
                     {lead.phone}
                   </p>
-                  <p className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0 sm:ml-6">
-                    {lead.email}
-                  </p>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {lead.email || 'N/A'}
+                  </td>
                 </div>
                 <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
                   <p>

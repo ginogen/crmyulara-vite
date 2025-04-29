@@ -1,13 +1,8 @@
 import { Modal } from '../ui/Modal';
 import { BudgetForm } from '../forms/BudgetForm';
+import type { Database } from '@/lib/supabase/database.types';
 
-interface Budget {
-  id?: string;
-  contact_id: string;
-  amount: number;
-  status: 'pending' | 'approved' | 'rejected';
-  created_at?: string;
-}
+type Budget = Database['public']['Tables']['budgets']['Row'];
 
 interface BudgetModalProps {
   isOpen: boolean;

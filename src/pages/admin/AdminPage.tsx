@@ -1,6 +1,4 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
 import { Breadcrumb } from '@/components/ui/Breadcrumb';
 
 type UserRole = 'super_admin' | 'org_admin' | 'branch_manager' | 'sales_agent';
@@ -75,7 +73,6 @@ const IconComponent = ({ icon }: { icon: string }) => {
 };
 
 export function AdminPage() {
-  const { user } = useAuth();
   // Por ahora, definimos un rol fijo para pruebas
   const userRole: UserRole = 'super_admin';
 

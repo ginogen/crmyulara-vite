@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/Select';
+import { Select } from '@/components/ui/select';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { BranchModal } from '@/components/modals/BranchModal';
@@ -19,6 +19,11 @@ type Branch = {
   organization_id: string;
   status: 'active' | 'inactive';
   created_at: string;
+};
+
+type Organization = {
+  id: string;
+  name: string;
 };
 
 const statusLabels: Record<Branch['status'], string> = {
@@ -41,16 +46,31 @@ export function BranchesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState<Branch | undefined>();
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const { user } = useAuth();
-  // Por ahora, usaremos un rol fijo para el ejemplo
   const userRole: UserRole = 'org_admin';
   const supabase = createClient();
 
   useEffect(() => {
     fetchBranches();
+    fetchOrganizations();
   }, []);
+
+  const fetchOrganizations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('id, name')
+        .order('name');
+
+      if (error) throw error;
+      setOrganizations(data || []);
+    } catch (err) {
+      console.error('Error fetching organizations:', err);
+    }
+  };
 
   const fetchBranches = async () => {
     try {
@@ -321,6 +341,7 @@ export function BranchesPage() {
           isOpen={isModalOpen}
           onClose={handleCloseModal}
           branch={selectedBranch}
+          organizations={organizations}
           onSubmit={selectedBranch ? handleUpdateBranch : handleCreateBranch}
         />
       )}

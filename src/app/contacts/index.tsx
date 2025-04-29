@@ -1,25 +1,25 @@
 import { useState } from 'react';
 import { useContacts } from '../../hooks/useContacts';
-import ContactForm from '../../components/forms/ContactForm';
 import ContactList from '../../components/contacts/ContactList';
-import ContactModal from '../../components/modals/ContactModal';
+import { ContactModal } from '../../components/modals/ContactModal';
+import { Contact } from '@/types/supabase';
 
 export default function ContactsPage() {
-  const { contacts, loading, error, createContact, updateContact, deleteContact } = useContacts();
-  const [selectedContact, setSelectedContact] = useState<any>(null);
+  const { contacts, isLoading, error, createContact, updateContact, deleteContact } = useContacts();
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const handleCreateContact = async (contactData: any) => {
+  const handleCreateContact = async (contactData: Omit<Contact, 'id' | 'created_at'>) => {
     try {
-      await createContact(contactData);
+      await createContact.mutateAsync(contactData);
     } catch (err) {
       console.error('Error al crear contacto:', err);
     }
   };
 
-  const handleUpdateContact = async (id: string, updates: any) => {
+  const handleUpdateContact = async (id: string, updates: Partial<Contact>) => {
     try {
-      await updateContact(id, updates);
+      await updateContact.mutateAsync({ id, ...updates });
       setSelectedContact(null);
       setIsModalOpen(false);
     } catch (err) {
@@ -30,14 +30,14 @@ export default function ContactsPage() {
   const handleDeleteContact = async (id: string) => {
     if (window.confirm('¿Estás seguro de que quieres eliminar este contacto?')) {
       try {
-        await deleteContact(id);
+        await deleteContact.mutateAsync(id);
       } catch (err) {
         console.error('Error al eliminar contacto:', err);
       }
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return <div>Cargando contactos...</div>;
   }
 
@@ -59,9 +59,12 @@ export default function ContactsPage() {
 
       <ContactList
         contacts={contacts}
-        onEdit={(contact) => {
-          setSelectedContact(contact);
-          setIsModalOpen(true);
+        onSelect={(id: string) => {
+          const contact = contacts.find(c => c.id === id);
+          if (contact) {
+            setSelectedContact(contact);
+            setIsModalOpen(true);
+          }
         }}
         onDelete={handleDeleteContact}
       />
@@ -72,8 +75,12 @@ export default function ContactsPage() {
           setIsModalOpen(false);
           setSelectedContact(null);
         }}
-        contact={selectedContact}
-        onSubmit={selectedContact ? handleUpdateContact : handleCreateContact}
+        contact={selectedContact || undefined}
+        onSubmit={selectedContact ? 
+          (data) => handleUpdateContact(selectedContact.id, data) : 
+          handleCreateContact
+        }
+        tags={[]} // TODO: Implementar la obtención de tags
       />
     </div>
   );

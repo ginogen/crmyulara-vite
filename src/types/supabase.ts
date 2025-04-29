@@ -141,30 +141,11 @@ export type Budget = {
   created_at: string;
   title: string;
   description: string;
-  rates: string;
-  status: 'draft' | 'sent' | 'approved' | 'rejected' | 'expired';
-  contact_id: string;
+  amount: number;
+  status: 'draft' | 'pending' | 'approved' | 'rejected';
+  assigned_to: string;
   organization_id: string;
   branch_id: string;
-  created_by: string;
-  responsible: string;
-  valid_until: string;
-  payment_terms: string;
-  notes: string;
-  slug: string;
-  theme_settings: {
-    logo_url?: string;
-    primary_color?: string;
-    secondary_color?: string;
-    font_family?: string;
-    header_style?: string;
-  };
-  contacts?: {
-    id: string;
-    full_name: string;
-    email: string;
-    phone: string;
-  };
 };
 
 export type FacebookIntegration = {

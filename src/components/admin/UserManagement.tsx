@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/Select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { createClient } from '@/lib/supabase/client';
 
 type User = {
@@ -58,17 +58,17 @@ export const UserManagement = () => {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
-        <Select
-          value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value)}
-          options={[
-            { value: '', label: 'Todos los roles' },
-            { value: 'super_admin', label: 'Super Admin' },
-            { value: 'org_admin', label: 'Admin de Organización' },
-            { value: 'branch_manager', label: 'Gerente de Sucursal' },
-            { value: 'sales_agent', label: 'Agente de Ventas' },
-          ]}
-        />
+        <Select onValueChange={setRoleFilter} value={roleFilter}>
+          <SelectTrigger>
+            <SelectValue placeholder="Seleccionar rol" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="super_admin">Super Admin</SelectItem>
+            <SelectItem value="org_admin">Admin de Organización</SelectItem>
+            <SelectItem value="branch_manager">Gerente de Sucursal</SelectItem>
+            <SelectItem value="sales_agent">Agente de Ventas</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="overflow-x-auto">

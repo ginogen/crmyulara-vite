@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/Select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type Branch = {
   id: string;
@@ -17,17 +17,24 @@ type Branch = {
   created_at: string;
 };
 
-type BranchModalProps = {
+interface Organization {
+  id: string;
+  name: string;
+}
+
+interface BranchModalProps {
   isOpen: boolean;
   onClose: () => void;
   branch?: Branch;
+  organizations: Organization[];
   onSubmit: (data: Omit<Branch, 'id' | 'created_at'>) => Promise<void>;
-};
+}
 
 export function BranchModal({
   isOpen,
   onClose,
   branch,
+  organizations,
   onSubmit,
 }: BranchModalProps) {
   const [formData, setFormData] = useState({
@@ -73,11 +80,21 @@ export function BranchModal({
     }
   }, [branch]);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSelectChange = (field: string) => (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -146,7 +163,7 @@ export function BranchModal({
                 id="name"
                 name="name"
                 value={formData.name}
-                onChange={handleChange}
+                onChange={handleInputChange}
                 required
               />
             </div>
@@ -163,7 +180,7 @@ export function BranchModal({
                 name="description"
                 rows={3}
                 value={formData.description}
-                onChange={handleChange}
+                onChange={handleInputChange}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               />
             </div>
@@ -180,7 +197,7 @@ export function BranchModal({
                 id="address"
                 name="address"
                 value={formData.address}
-                onChange={handleChange}
+                onChange={handleInputChange}
                 required
               />
             </div>
@@ -198,7 +215,7 @@ export function BranchModal({
                   id="city"
                   name="city"
                   value={formData.city}
-                  onChange={handleChange}
+                  onChange={handleInputChange}
                   required
                 />
               </div>
@@ -214,7 +231,7 @@ export function BranchModal({
                   id="province"
                   name="province"
                   value={formData.province}
-                  onChange={handleChange}
+                  onChange={handleInputChange}
                   required
                 />
               </div>
@@ -232,7 +249,7 @@ export function BranchModal({
                 id="phone"
                 name="phone"
                 value={formData.phone}
-                onChange={handleChange}
+                onChange={handleInputChange}
                 required
               />
             </div>
@@ -249,28 +266,43 @@ export function BranchModal({
                 id="email"
                 name="email"
                 value={formData.email}
-                onChange={handleChange}
+                onChange={handleInputChange}
                 required
               />
             </div>
 
-            <div>
-              <label
-                htmlFor="status"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Estado
-              </label>
-              <Select
-                id="status"
-                name="status"
-                value={formData.status}
-                onChange={handleChange}
-                options={[
-                  { value: 'active', label: 'Activa' },
-                  { value: 'inactive', label: 'Inactiva' },
-                ]}
-              />
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="organization" className="block text-sm font-medium text-gray-700">
+                  Organización
+                </label>
+                <Select onValueChange={handleSelectChange('organization_id')} value={formData.organization_id}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar organización" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {organizations?.map((org: Organization) => (
+                      <SelectItem key={org.id} value={org.id}>
+                        {org.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label htmlFor="status" className="block text-sm font-medium text-gray-700">
+                  Estado
+                </label>
+                <Select onValueChange={handleSelectChange('status')} value={formData.status}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar estado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Activo</SelectItem>
+                    <SelectItem value="inactive">Inactivo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="mt-6 flex justify-end space-x-3">

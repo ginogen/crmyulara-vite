@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import {
   HomeIcon,
@@ -19,12 +18,11 @@ interface SidebarProps {
   userRole: 'super_admin' | 'org_admin' | 'branch_manager' | 'sales_agent';
   userEmail: string;
   userName: string;
-  organizationLogo?: string;
   userProfilePic?: string;
   onToggleCollapse?: (collapsed: boolean) => void;
 }
 
-export default function Sidebar({ userRole, userEmail, userName, organizationLogo, userProfilePic, onToggleCollapse }: SidebarProps) {
+export default function Sidebar({ userRole, userEmail, userName, userProfilePic, onToggleCollapse }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();

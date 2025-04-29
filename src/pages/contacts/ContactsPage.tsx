@@ -7,7 +7,6 @@ import { formatPhoneNumber } from '@/lib/utils/strings';
 import { formatDate } from '@/lib/utils/dates';
 import { useContacts } from '@/hooks/useContacts';
 import { WhatsAppModal, ContactManagementModal, TagsModal, ContactModal } from '@/components/modals';
-import { ContactForm } from '@/components/forms/ContactForm';
 import Select from 'react-select';
 
 // Definir los tipos que necesitamos

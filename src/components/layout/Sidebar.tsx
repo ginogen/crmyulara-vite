@@ -3,7 +3,6 @@ import {
   HomeIcon,
   UsersIcon,
   DocumentTextIcon,
-  InboxIcon,
   CogIcon,
 } from '@heroicons/react/24/outline';
 
@@ -11,7 +10,6 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
   { name: 'Contactos', href: '/contacts', icon: UsersIcon },
   { name: 'Presupuestos', href: '/budgets', icon: DocumentTextIcon },
-  { name: 'Bandeja', href: '/inbox', icon: InboxIcon },
   { name: 'Configuración', href: '/admin', icon: CogIcon },
 ];
 

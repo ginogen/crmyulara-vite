@@ -1,14 +1,12 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button } from '../../components/ui/Button';
-import BudgetList from '../../components/budgets/BudgetList';
+import { Button } from '../../components/ui/button';
+import { BudgetList } from '../../components/budgets/BudgetList';
 import BudgetModal from '../../components/modals/BudgetModal';
 import type { Database } from '../../lib/supabase/database.types';
 
 type Budget = Database['public']['Tables']['budgets']['Row'];
 
 export default function BudgetsPage() {
-  const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState<Budget | undefined>();
 
@@ -23,6 +21,7 @@ export default function BudgetsPage() {
   };
 
   const handleSubmitBudget = async (data: Omit<Budget, 'id' | 'created_at'>) => {
+    console.log('Datos del presupuesto:', data);
     // TODO: Implementar la lógica de guardado
     setIsModalOpen(false);
   };

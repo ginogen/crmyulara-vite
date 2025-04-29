@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Button } from "@/components/ui/Button"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
@@ -276,7 +276,7 @@ export function ContactManagementModal({ isOpen, onClose, contact }: ContactMana
       if (error) throw error;
 
       setTasks(tasks.map(task => 
-        task.id === taskId ? { ...task, status: newStatus } : task
+        task.id === taskId ? { ...task, ...data } : task
       ));
 
       toast.success(`Tarea marcada como ${newStatus === 'completed' ? 'completada' : 'pendiente'}`);

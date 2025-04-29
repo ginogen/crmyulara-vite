@@ -138,7 +138,7 @@ export function ContactTasksModal({ isOpen, onClose, contactId }: ContactTasksMo
     const newStatus = currentStatus === 'pending' ? 'completed' : 'pending';
 
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('tasks')
         .update({ status: newStatus })
         .eq('id', taskId)

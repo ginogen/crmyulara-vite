@@ -1,12 +1,9 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button } from '../../components/ui/Button';
-import UserManagement from '../../components/admin/UserManagement';
-import OrganizationSettings from '../../components/admin/OrganizationSettings';
-import BranchManagement from '../../components/admin/BranchManagement';
+import { UserManagement } from '../../components/admin/UserManagement';
+import { OrganizationSettings } from '../../components/admin/OrganizationSettings';
+import { BranchManagement } from '../../components/admin/BranchManagement';
 
 export default function AdminPage() {
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('users');
 
   return (

@@ -5,21 +5,10 @@ import { useContacts } from '@/hooks/useContacts';
 import { useBudgets } from '@/hooks/useBudgets';
 import { BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useAuth } from '@/contexts/AuthContext';
-import { Lead, Contact } from '@/types/supabase';
 import { formatDate } from '@/lib/utils/dates';
 
-interface Task {
-  id: string;
-  title: string;
-  description: string;
-  due_date: string;
-  related_to_type: 'lead' | 'contact';
-  related_to_id: string;
-  related_name: string;
-}
-
 export default function DashboardPage() {
-  const { user, currentOrganization, currentBranch } = useAuth();
+  const { currentOrganization, currentBranch } = useAuth();
   const { leads, loading: leadsLoading } = useLeads(currentOrganization?.id, currentBranch?.id);
   const { contacts, isLoading: contactsLoading } = useContacts(currentOrganization?.id, currentBranch?.id);
   const { budgets, isLoading: budgetsLoading } = useBudgets(currentOrganization?.id, currentBranch?.id);
@@ -405,7 +394,7 @@ export default function DashboardPage() {
                 dataKey="value"
                 label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
               >
-                {pieData.map((entry, index) => (
+                {pieData.map((_, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
@@ -487,8 +476,8 @@ export default function DashboardPage() {
               {budgets.length > 0 ? (
                 budgets.slice(0, 3).map((budget) => (
                   <tr key={budget.id}>
-                    <td className="py-2">Presupuesto #{budget.id.substring(0, 6)}</td>
-                    <td className="py-2">{budget.contact_id}</td>
+                    <td className="py-2">{budget.title}</td>
+                    <td className="py-2">${budget.amount.toLocaleString()}</td>
                     <td className="py-2">
                       <span className="px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800">
                         {budget.status}

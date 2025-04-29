@@ -1,16 +1,9 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { Database } from '@/lib/supabase/database.types';
 
-type Budget = {
-  id: string;
-  contact_id: string;
-  amount: number;
-  status: 'draft' | 'sent' | 'approved' | 'rejected';
-  created_at: string;
-  organization_id: string;
-  branch_id: string;
-};
+type Budget = Database['public']['Tables']['budgets']['Row'];
 
 export function useBudgets(organizationId?: string, branchId?: string) {
   const [budgets, setBudgets] = useState<Budget[]>([]);

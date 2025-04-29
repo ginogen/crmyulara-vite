@@ -1,6 +1,4 @@
 import { LeadModal } from './LeadModal';
-import FacebookIntegrationModal from './FacebookIntegrationModal';
-import { MakeIntegrationModal } from './MakeIntegrationModal';
 import { LeadHistoryModal } from './LeadHistoryModal';
 import { LeadTasksModal } from './LeadTasksModal';
 import { ContactModal } from './ContactModal';
@@ -14,8 +12,6 @@ import BudgetModal from './BudgetModal';
 
 export {
   LeadModal,
-  FacebookIntegrationModal,
-  MakeIntegrationModal,
   LeadHistoryModal,
   LeadTasksModal,
   ContactModal,

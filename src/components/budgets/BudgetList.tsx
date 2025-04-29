@@ -1,10 +1,17 @@
 import { useState } from 'react';
 import { useBudgets } from '@/hooks/useBudgets';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { BudgetForm } from '@/components/forms/BudgetForm';
+import type { Database } from '@/lib/supabase/database.types';
 
-export function BudgetList() {
-  const { budgets, isLoading, error, createBudget, updateBudget, deleteBudget } = useBudgets();
+type Budget = Database['public']['Tables']['budgets']['Row'];
+
+interface BudgetListProps {
+  onEdit: (budget: Budget) => void;
+}
+
+export function BudgetList({ onEdit }: BudgetListProps) {
+  const { budgets, isLoading, error, createBudget, deleteBudget } = useBudgets();
   const [isFormOpen, setIsFormOpen] = useState(false);
 
   if (isLoading) {
@@ -25,7 +32,7 @@ export function BudgetList() {
       {isFormOpen && (
         <BudgetForm
           onSubmit={async (data) => {
-            await createBudget(data);
+            await createBudget.mutateAsync(data);
             setIsFormOpen(false);
           }}
           onCancel={() => setIsFormOpen(false)}
@@ -37,7 +44,7 @@ export function BudgetList() {
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Contacto
+                Título
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Monto
@@ -56,7 +63,7 @@ export function BudgetList() {
           <tbody className="bg-white divide-y divide-gray-200">
             {budgets.map((budget) => (
               <tr key={budget.id}>
-                <td className="px-6 py-4 whitespace-nowrap">{budget.contact_id}</td>
+                <td className="px-6 py-4 whitespace-nowrap">{budget.title}</td>
                 <td className="px-6 py-4 whitespace-nowrap">${budget.amount}</td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span
@@ -77,16 +84,14 @@ export function BudgetList() {
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      // Implementar edición
-                    }}
+                    onClick={() => onEdit(budget)}
                   >
                     Editar
                   </Button>
                   <Button
                     variant="outline"
                     className="ml-2"
-                    onClick={() => deleteBudget(budget.id)}
+                    onClick={() => deleteBudget.mutateAsync(budget.id)}
                   >
                     Eliminar
                   </Button>

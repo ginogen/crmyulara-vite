@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/Select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type Organization = {
   id: string;
@@ -163,16 +163,15 @@ export function OrganizationModal({
               >
                 Estado
               </label>
-              <Select
-                id="status"
-                name="status"
-                value={formData.status}
-                onChange={handleChange}
-                options={[
-                  { value: 'active', label: 'Activa' },
-                  { value: 'inactive', label: 'Inactiva' },
-                ]}
-              />
+              <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value as Organization['status'] })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Activa</SelectItem>
+                  <SelectItem value="inactive">Inactiva</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div>

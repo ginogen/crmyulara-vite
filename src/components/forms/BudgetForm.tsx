@@ -1,26 +1,37 @@
 import { useState } from 'react';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/Select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { Database } from '@/lib/supabase/database.types';
+
+type Budget = Database['public']['Tables']['budgets']['Row'];
 
 interface BudgetFormData {
-  contact_id: string;
+  title: string;
+  description: string;
   amount: number;
-  status: 'pending' | 'approved' | 'rejected';
+  status: Budget['status'];
+  assigned_to: string;
+  organization_id: string;
+  branch_id: string;
 }
 
 interface BudgetFormProps {
-  initialData?: BudgetFormData;
-  onSubmit: (data: BudgetFormData) => Promise<void>;
+  initialData?: Budget;
+  onSubmit: (data: Omit<Budget, 'id' | 'created_at'>) => Promise<void>;
   onCancel: () => void;
 }
 
 export function BudgetForm({ initialData, onSubmit, onCancel }: BudgetFormProps) {
   const [formData, setFormData] = useState<BudgetFormData>(
     initialData || {
-      contact_id: '',
+      title: '',
+      description: '',
       amount: 0,
-      status: 'pending',
+      status: 'draft',
+      assigned_to: '',
+      organization_id: '',
+      branch_id: '',
     }
   );
 
@@ -29,22 +40,28 @@ export function BudgetForm({ initialData, onSubmit, onCancel }: BudgetFormProps)
     await onSubmit(formData);
   };
 
-  const statusOptions = [
-    { value: 'pending', label: 'Pendiente' },
-    { value: 'approved', label: 'Aprobado' },
-    { value: 'rejected', label: 'Rechazado' },
-  ];
-
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="contact_id" className="block text-sm font-medium text-gray-700">
-          ID del Contacto
+        <label htmlFor="title" className="block text-sm font-medium text-gray-700">
+          Título
         </label>
         <Input
-          id="contact_id"
-          value={formData.contact_id}
-          onChange={(e) => setFormData({ ...formData, contact_id: e.target.value })}
+          id="title"
+          value={formData.title}
+          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+          required
+        />
+      </div>
+
+      <div>
+        <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+          Descripción
+        </label>
+        <Input
+          id="description"
+          value={formData.description}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
           required
         />
       </div>
@@ -66,12 +83,17 @@ export function BudgetForm({ initialData, onSubmit, onCancel }: BudgetFormProps)
         <label htmlFor="status" className="block text-sm font-medium text-gray-700">
           Estado
         </label>
-        <Select
-          id="status"
-          value={formData.status}
-          onChange={(e) => setFormData({ ...formData, status: e.target.value as BudgetFormData['status'] })}
-          options={statusOptions}
-        />
+        <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value as Budget['status'] })}>
+          <SelectTrigger>
+            <SelectValue placeholder="Seleccionar estado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="draft">Borrador</SelectItem>
+            <SelectItem value="pending">Pendiente</SelectItem>
+            <SelectItem value="approved">Aprobado</SelectItem>
+            <SelectItem value="rejected">Rechazado</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="flex justify-end space-x-2">
