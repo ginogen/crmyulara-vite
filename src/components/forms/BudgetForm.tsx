@@ -83,7 +83,7 @@ export function BudgetForm({ initialData, onSubmit, onCancel }: BudgetFormProps)
         <label htmlFor="status" className="block text-sm font-medium text-gray-700">
           Estado
         </label>
-        <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value as Budget['status'] })}>
+        <Select value={formData.status} onValueChange={(value: string) => setFormData({ ...formData, status: value as Budget['status'] })}>
           <SelectTrigger>
             <SelectValue placeholder="Seleccionar estado" />
           </SelectTrigger>

@@ -131,7 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, supabase]);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: any) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session: any) => {
       setUser(session?.user as DBUser ?? null);
       setLoading(false);
     });

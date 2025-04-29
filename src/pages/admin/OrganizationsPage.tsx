@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { OrganizationModal } from '@/components/modals/OrganizationModal';
@@ -185,17 +185,21 @@ export function OrganizationsPage() {
               Estado
             </label>
             <Select
-              id="status"
               value={filters.status}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value as Organization['status'] })}
-              options={[
-                { value: '', label: 'Todos' },
-                ...Object.entries(statusLabels).map(([value, label]) => ({
-                  value,
-                  label
-                }))
-              ]}
-            />
+              onValueChange={(value: string) => setFilters({ ...filters, status: value as Organization['status'] })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Todos</SelectItem>
+                {Object.entries(statusLabels).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

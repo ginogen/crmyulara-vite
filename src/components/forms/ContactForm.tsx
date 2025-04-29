@@ -172,7 +172,7 @@ export const ContactForm = ({ contact, onSubmit, onCancel, tags }: ContactFormPr
               </Label>
               <Select
                 value={formData.tag}
-                onValueChange={(value) => setFormData({ ...formData, tag: value })}
+                onValueChange={(value: string) => setFormData({ ...formData, tag: value })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar etiqueta" />

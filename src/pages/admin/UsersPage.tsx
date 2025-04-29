@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Breadcrumb } from '@/components/ui/Breadcrumb';
@@ -167,17 +167,21 @@ export function UsersPage() {
               Rol
             </label>
             <Select
-              id="role"
               value={filters.role}
-              onChange={(e) => setFilters({ ...filters, role: e.target.value })}
-              options={[
-                { value: '', label: 'Todos los roles' },
-                ...Object.entries(roleLabels).map(([value, label]) => ({
-                  value,
-                  label
-                }))
-              ]}
-            />
+              onValueChange={(value: string) => setFilters({ ...filters, role: value })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar rol" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Todos los roles</SelectItem>
+                {Object.entries(roleLabels).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
