@@ -163,7 +163,7 @@ export function OrganizationModal({
               >
                 Estado
               </label>
-              <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value as Organization['status'] })}>
+              <Select value={formData.status} onValueChange={(value: string) => setFormData({ ...formData, status: value as Organization['status'] })}>
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar estado" />
                 </SelectTrigger>

@@ -131,7 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, supabase]);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: any) => {
       setUser(session?.user as DBUser ?? null);
       setLoading(false);
     });
@@ -168,7 +168,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setCurrentOrganization(org);
     
     // Al cambiar la organización, actualizar también la sucursal
-    const firstBranchOfOrg = branches.find(branch => branch.organization_id === org.id);
+    const firstBranchOfOrg = branches.find((branch: Branch) => branch.organization_id === org.id);
     if (firstBranchOfOrg) {
       setCurrentBranch(firstBranchOfOrg);
     } else {
