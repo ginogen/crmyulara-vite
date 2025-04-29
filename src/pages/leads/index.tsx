@@ -422,7 +422,7 @@ export function LeadsPage() {
                   { value: filters.assignedTo, label: agents.find(agent => agent.id === filters.assignedTo)?.full_name } :
                   { value: 'all', label: 'Todos los agentes' }
                 }
-                onChange={(newValue: SingleValue<{ value: string; label: string | undefined }>, actionMeta: ActionMeta<{ value: string; label: string | undefined }>) => 
+                onChange={(newValue: SingleValue<{ value: string; label: string | undefined }>) => 
                   handleFilterChange('assignedTo', newValue?.value || '')}
                 className="text-xs"
                 classNamePrefix="select"

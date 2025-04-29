@@ -206,7 +206,7 @@ export function LeadTasksModal({ isOpen, onClose, leadId }: LeadTasksModalProps)
                     type="text"
                     id="title"
                     value={newTask.title}
-                    onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                    onChange={(e: any) => setNewTask({ ...newTask, title: e.target.value })}
                     className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm transition-colors"
                     required
                   />
@@ -223,7 +223,7 @@ export function LeadTasksModal({ isOpen, onClose, leadId }: LeadTasksModalProps)
                       type="datetime-local"
                       id="due_date"
                       value={newTask.due_date}
-                      onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
+                      onChange={(e: any) => setNewTask({ ...newTask, due_date: e.target.value })}
                       className="block w-full rounded-lg border-gray-300 pl-10 focus:border-blue-500 focus:ring-blue-500 text-sm transition-colors"
                       required
                     />
@@ -236,7 +236,7 @@ export function LeadTasksModal({ isOpen, onClose, leadId }: LeadTasksModalProps)
                   <textarea
                     id="description"
                     value={newTask.description}
-                    onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+                    onChange={(e: any) => setNewTask({ ...newTask, description: e.target.value })}
                     rows={3}
                     className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm transition-colors"
                   />

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
+import { Button } from '../../components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 
 type Organization = {
   id: string;
@@ -61,11 +61,14 @@ export function OrganizationModal({
     }
   }, [organization]);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const target = e.target as unknown as { name: string; value: string };
+    setFormData((prev) => ({ ...prev, [target.name]: target.value }));
+  };
+
+  const handleTextAreaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const target = e.target as unknown as { name: string; value: string };
+    setFormData((prev) => ({ ...prev, [target.name]: target.value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -151,7 +154,7 @@ export function OrganizationModal({
                 name="description"
                 rows={3}
                 value={formData.description}
-                onChange={handleChange}
+                onChange={handleTextAreaChange}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               />
             </div>

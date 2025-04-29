@@ -19,6 +19,6 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['@radix-ui/react-select']
+    include: ['@radix-ui/react-select', '@radix-ui/react-dialog', '@radix-ui/react-label', '@radix-ui/react-separator', '@radix-ui/react-slot', '@radix-ui/react-tabs', '@radix-ui/react-avatar', '@radix-ui/react-checkbox', '@radix-ui/react-dropdown-menu', '@radix-ui/react-popover']
   }
 })
