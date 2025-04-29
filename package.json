@@ -5,8 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "clean": "rimraf dist",
-    "build": "npm run clean && tsc --noEmit && vite build",
+    "build": "rm -rf dist || true && tsc --noEmit && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
