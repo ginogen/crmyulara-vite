@@ -8,7 +8,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@/components/ui/select': path.resolve(__dirname, './src/components/ui/select.tsx'),
     },
+    extensions: ['.js', '.jsx', '.ts', '.tsx', '.json']
   },
   build: {
     sourcemap: true,
