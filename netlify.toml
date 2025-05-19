@@ -5,6 +5,14 @@
 [build.environment]
   NODE_VERSION = "18"
 
+[functions]
+  directory = "netlify/functions"
+
+# Variables de entorno para las funciones
+[template.environment]
+  SUPABASE_URL = "URL de tu proyecto Supabase"
+  SUPABASE_SERVICE_ROLE_KEY = "Service Role Key de Supabase"
+
 # Configuración para SPA
 [[redirects]]
   from = "/*"

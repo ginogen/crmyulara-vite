@@ -52,3 +52,4 @@ export function formatMoney(amount: number): string {
     currency: 'ARS',
   }).format(amount);
 } 
+
