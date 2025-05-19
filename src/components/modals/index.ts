@@ -9,6 +9,7 @@ import { TagsModal } from './TagsModal';
 import { BranchModal } from './BranchModal';
 import { OrganizationModal } from './OrganizationModal';
 import BudgetModal from './BudgetModal';
+import { MakeIntegrationModal } from './MakeIntegrationModal';
 
 export {
   LeadModal,
@@ -21,5 +22,6 @@ export {
   TagsModal,
   BranchModal,
   OrganizationModal,
-  BudgetModal
+  BudgetModal,
+  MakeIntegrationModal
 }; 

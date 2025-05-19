@@ -6,7 +6,7 @@ import { formatDate } from '@/lib/utils/dates';
 import { generateInquiryNumber } from '@/lib/utils/strings';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLeads } from '@/hooks/useLeads';
-import { LeadModal, LeadHistoryModal, LeadTasksModal, WhatsAppModal } from '@/components/modals';
+import { LeadModal, LeadHistoryModal, LeadTasksModal, WhatsAppModal, MakeIntegrationModal } from '@/components/modals';
 import Select, { SingleValue, ActionMeta } from 'react-select';
 import { Badge } from "@/components/ui/badge"
 import {
@@ -66,6 +66,7 @@ export function LeadsPage() {
   const [selectedLeads, setSelectedLeads] = useState<Lead[]>([]);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [selectedLeadForWA, setSelectedLeadForWA] = useState<Lead | null>(null);
+  const [isMakeModalOpen, setIsMakeModalOpen] = useState(false);
 
   const {
     leads,
@@ -282,6 +283,24 @@ export function LeadsPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900">Leads</h1>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsMakeModalOpen(true)}
+              className="inline-flex items-center gap-x-2 bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 rounded-md"
+            >
+              <svg 
+                className="h-5 w-5" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path d="M12 15V17M12 7V13M12 21C16.9706 21 21 16.9706 21 12C21 7.02944 16.9706 3 12 3C7.02944 3 3 7.02944 3 12C3 16.9706 7.02944 21 12 21Z" 
+                      stroke="currentColor" 
+                      strokeWidth="2" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round"/>
+              </svg>
+              Configurar Make
+            </button>
             <button
               onClick={() => handleOpenModal()}
               className="inline-flex items-center gap-x-2 bg-gray-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 rounded-md"
@@ -756,15 +775,18 @@ export function LeadsPage() {
       </div>
 
       {/* Modales */}
-      {isModalOpen && (
-        <LeadModal
-          isOpen={isModalOpen}
-          onClose={handleCloseModal}
-          lead={selectedLead}
-          onSubmit={selectedLead ? handleUpdateLead : handleCreateLead}
-          initialData={selectedLead}
-        />
-      )}
+      <MakeIntegrationModal
+        isOpen={isMakeModalOpen}
+        onClose={() => setIsMakeModalOpen(false)}
+      />
+
+      <LeadModal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        lead={selectedLead}
+        onSubmit={selectedLead ? handleUpdateLead : handleCreateLead}
+        initialData={selectedLead}
+      />
 
       {isHistoryModalOpen && (
         <LeadHistoryModal
@@ -782,7 +804,6 @@ export function LeadsPage() {
         />
       )}
 
-      {/* WhatsApp Modal */}
       {selectedLeadForWA && (
         <WhatsAppModal
           isOpen={isWhatsAppModalOpen}
