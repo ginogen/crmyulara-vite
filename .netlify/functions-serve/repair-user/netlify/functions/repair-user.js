@@ -14681,56 +14681,73 @@ var require_main5 = __commonJS({
   }
 });
 
-// netlify/functions/create-user.js
+// netlify/functions/repair-user.js
 var { createClient } = require_main5();
 exports.handler = async function(event, context) {
   if (event.httpMethod !== "POST") {
     return { statusCode: 405, body: "Method Not Allowed" };
   }
-  const { email, password, full_name, role, organization_id, branch_id } = JSON.parse(event.body);
-  if (!password) {
+  const { email, newPassword } = JSON.parse(event.body);
+  if (!email) {
     return {
       statusCode: 400,
-      body: JSON.stringify({ error: "La contrase\xF1a es requerida" })
+      body: JSON.stringify({ error: "Email es requerido" })
     };
   }
   const supabase = createClient(
     process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    }
   );
-  const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true
-    // Confirmamos el email automáticamente
-  });
-  if (authError || !authUser?.user?.id) {
+  try {
+    const { data: userData, error: userError } = await supabase.from("users").select("id, email").eq("email", email).single();
+    if (userError) {
+      console.error("Error buscando usuario en tabla users:", userError);
+      throw new Error("Error buscando usuario en la base de datos");
+    }
+    if (!userData) {
+      return {
+        statusCode: 404,
+        body: JSON.stringify({ error: "Usuario no encontrado en la tabla users" })
+      };
+    }
+    const { error: updateError } = await supabase.auth.admin.updateUserById(
+      userData.id,
+      {
+        email_confirm: true,
+        password: newPassword
+        // Solo se actualiza si se proporciona una nueva contraseña
+      }
+    );
+    if (updateError) {
+      console.error("Error actualizando usuario en auth:", updateError);
+      throw updateError;
+    }
     return {
-      statusCode: 400,
-      body: JSON.stringify({ error: authError?.message || "Error creando usuario en Auth" })
+      statusCode: 200,
+      body: JSON.stringify({
+        success: true,
+        message: "Usuario reparado exitosamente. Ahora deber\xEDa poder acceder.",
+        details: {
+          email_confirmed: true,
+          password_updated: !!newPassword
+        }
+      })
+    };
+  } catch (error) {
+    console.error("Error completo:", error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        error: error.message || "Error al reparar usuario",
+        details: error.toString()
+      })
     };
   }
-  const { error } = await supabase.from("users").insert({
-    id: authUser.user.id,
-    full_name,
-    email,
-    role,
-    organization_id,
-    branch_id
-  });
-  if (error) {
-    await supabase.auth.admin.deleteUser(authUser.user.id);
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ error: error.message })
-    };
-  }
-  return {
-    statusCode: 200,
-    body: JSON.stringify({
-      success: true,
-      message: "Usuario creado exitosamente"
-    })
-  };
 };
-//# sourceMappingURL=create-user.js.map
+//# sourceMappingURL=repair-user.js.map

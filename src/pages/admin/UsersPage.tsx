@@ -166,6 +166,64 @@ export function UsersPage() {
     }
   };
 
+  const handleConfirmEmail = async (email: string) => {
+    if (!window.confirm('¿Estás seguro de que deseas confirmar el email de este usuario?')) return;
+    
+    try {
+      const res = await fetch('/.netlify/functions/confirm-user-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const result = await res.json();
+      
+      if (!res.ok) {
+        console.error('Error detallado:', result);
+        throw new Error(result.error || 'Error al confirmar email');
+      }
+
+      alert('Email confirmado exitosamente');
+      // Opcionalmente refrescar la lista de usuarios
+      fetchUsers();
+    } catch (err: any) {
+      console.error('Error completo:', err);
+      alert(`Error al confirmar email: ${err.message}`);
+    }
+  };
+
+  const handleRepairUser = async (email: string) => {
+    const newPassword = prompt('Ingresa una nueva contraseña para el usuario (deja en blanco para mantener la actual):');
+    if (newPassword === null) return; // Usuario canceló
+
+    try {
+      const res = await fetch('/.netlify/functions/repair-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email,
+          newPassword: newPassword || undefined // Solo enviar si se ingresó una contraseña
+        }),
+      });
+
+      const result = await res.json();
+      
+      if (!res.ok) {
+        console.error('Error detallado:', result);
+        throw new Error(result.error || 'Error al reparar usuario');
+      }
+
+      alert(result.message);
+      if (newPassword) {
+        alert(`Nueva contraseña establecida: ${newPassword}\nPor favor, compártela con el usuario de forma segura.`);
+      }
+      fetchUsers();
+    } catch (err: any) {
+      console.error('Error completo:', err);
+      alert(`Error al reparar usuario: ${err.message}`);
+    }
+  };
+
   const filteredUsers = users.filter((user) => {
     const matchesRole = filters.role ? user.role === filters.role : true;
     const matchesSearch = filters.search
@@ -345,6 +403,22 @@ export function UsersPage() {
                           size="sm"
                         >
                           Editar
+                        </Button>
+                        <Button
+                          onClick={() => handleConfirmEmail(user.email)}
+                          variant="outline"
+                          size="sm"
+                          className="ml-2"
+                        >
+                          Confirmar Email
+                        </Button>
+                        <Button
+                          onClick={() => handleRepairUser(user.email)}
+                          variant="outline"
+                          size="sm"
+                          className="ml-2"
+                        >
+                          Reparar Usuario
                         </Button>
                         {(userRole === 'super_admin' || userRole === 'org_admin') && (
                           <Button
