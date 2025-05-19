@@ -16,6 +16,8 @@ import { AdminPage } from '@/pages/admin/AdminPage';
 import { OrganizationsPage } from '@/pages/admin/OrganizationsPage';
 import { BranchesPage } from '@/pages/admin/BranchesPage';
 import { UsersPage } from '@/pages/admin/UsersPage';
+import { ProfilePage } from '@/pages/admin/ProfilePage';
+import { RulesPage } from '@/pages/rules';
 
 // Componentes de error
 import { NotFoundPage } from '@/pages/error/NotFoundPage';
@@ -70,6 +72,14 @@ const App = () => {
           }
         />
         <Route
+          path="/rules"
+          element={
+            <ProtectedRoute>
+              <RulesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/budgets"
           element={
             <ProtectedRoute>
@@ -106,6 +116,14 @@ const App = () => {
           element={
             <ProtectedRoute>
               <UsersPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/profile"
+          element={
+            <ProtectedRoute>
+              <ProfilePage />
             </ProtectedRoute>
           }
         />

@@ -11,6 +11,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ArrowRightOnRectangleIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline';
 import { clsx } from '@/lib/utils';
 
@@ -28,11 +29,16 @@ export default function Sidebar({ userRole, userEmail, userName, userProfilePic,
   const navigate = useNavigate();
   const { signOut } = useAuth();
 
+  console.log('User Role in Dashboard Sidebar:', userRole);
+
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
     { name: 'Contactos', href: '/contacts', icon: UserGroupIcon },
     { name: 'Leads', href: '/leads', icon: UserPlusIcon },
     { name: 'Presupuestos', href: '/budgets', icon: DocumentTextIcon },
+    ...(userRole === 'super_admin' || userRole === 'org_admin'
+      ? [{ name: 'Reglas', href: '/rules', icon: ClipboardDocumentListIcon }]
+      : []),
     ...(userRole !== 'sales_agent'
       ? [{ name: 'Administración', href: '/admin', icon: Cog6ToothIcon }]
       : []),

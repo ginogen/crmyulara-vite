@@ -116,7 +116,7 @@ export function BranchModal({
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
-      <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 md:mx-auto">
+      <div className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 md:mx-auto max-h-[90vh] overflow-y-auto flex flex-col">
         <div className="px-6 pt-6 pb-8">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-xl font-semibold text-gray-900">

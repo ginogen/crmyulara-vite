@@ -6,14 +6,22 @@ import { useAuth } from '@/contexts/AuthContext'
 
 export default function DashboardLayout() {
   const [isCollapsed, setIsCollapsed] = useState(false)
-  const { user } = useAuth()
+  const { user, userRole } = useAuth()
 
-  const userRole = user?.role as 'super_admin' | 'org_admin' | 'branch_manager' | 'sales_agent' || 'sales_agent'
+  // Asegurarnos de que userRole sea uno de los valores permitidos
+  const validRole = (userRole === 'super_admin' || 
+                    userRole === 'org_admin' || 
+                    userRole === 'branch_manager' || 
+                    userRole === 'sales_agent') 
+                    ? userRole 
+                    : 'sales_agent';
+
+  console.log('User Role in DashboardLayout:', userRole, 'Valid Role:', validRole);
 
   return (
     <div className="flex h-screen bg-background">
       <Sidebar
-        userRole={userRole}
+        userRole={validRole}
         userEmail={user?.email || ''}
         userName={user?.user_metadata?.name || ''}
         userProfilePic={user?.user_metadata?.avatar_url}

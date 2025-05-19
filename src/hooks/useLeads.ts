@@ -2,8 +2,14 @@ import { useState, useEffect } from 'react';
 import { createClient } from '../lib/supabase/client';
 import type { Database } from '../lib/supabase/database.types';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Rule } from '@/types/supabase';
 
 type Lead = Database['public']['Tables']['leads']['Row'];
+
+// Función para obtener un usuario aleatorio de un array de IDs
+function getRandomUser(userIds: string[]): string {
+  return userIds[Math.floor(Math.random() * userIds.length)];
+}
 
 export function useLeads(organizationId?: string, branchId?: string) {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -11,6 +17,48 @@ export function useLeads(organizationId?: string, branchId?: string) {
   const [error, setError] = useState<string | null>(null);
   const supabase = createClient();
   const queryClient = useQueryClient();
+
+  // Función para obtener las reglas activas
+  const getActiveRules = async (orgId: string): Promise<Rule[]> => {
+    const { data, error } = await supabase
+      .from('rules')
+      .select('*')
+      .eq('organization_id', orgId)
+      .eq('is_active', true);
+
+    if (error) {
+      console.error('Error al obtener reglas:', error);
+      return [];
+    }
+
+    return data || [];
+  };
+
+  // Función para aplicar las reglas a un lead
+  const applyRules = async (lead: Lead): Promise<string | null> => {
+    if (!lead.organization_id) return null;
+
+    const rules = await getActiveRules(lead.organization_id);
+    
+    for (const rule of rules) {
+      let matches = false;
+
+      if (rule.type === 'campaign' && lead.origin) {
+        // Comprobar si el origen del lead contiene la condición de la regla (case insensitive)
+        matches = lead.origin.toLowerCase().includes(rule.condition.toLowerCase());
+      } else if (rule.type === 'province' && lead.province) {
+        // Comprobar si la provincia del lead coincide con la condición de la regla (case insensitive)
+        matches = lead.province.toLowerCase() === rule.condition.toLowerCase();
+      }
+
+      if (matches && rule.assigned_users.length > 0) {
+        // Seleccionar un usuario aleatorio de los asignados a la regla
+        return getRandomUser(rule.assigned_users);
+      }
+    }
+
+    return null;
+  };
 
   // Si no tenemos organizationId o branchId, devolver una lista vacía y loading=false
   useEffect(() => {
@@ -33,7 +81,6 @@ export function useLeads(organizationId?: string, branchId?: string) {
           .select('*')
           .eq('organization_id', organizationId)
           .eq('branch_id', branchId)
-          .is('converted_to_contact', false)
           .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -57,6 +104,14 @@ export function useLeads(organizationId?: string, branchId?: string) {
 
   const createLeadMutation = useMutation({
     mutationFn: async (leadData: Omit<Lead, 'id' | 'created_at'>) => {
+      // Si no hay un usuario asignado, intentar aplicar las reglas
+      if (!leadData.assigned_to) {
+        const assignedUser = await applyRules(leadData as Lead);
+        if (assignedUser) {
+          leadData.assigned_to = assignedUser;
+        }
+      }
+
       const { data, error } = await supabase
         .from('leads')
         .insert([leadData])
@@ -73,6 +128,24 @@ export function useLeads(organizationId?: string, branchId?: string) {
 
   const updateLeadMutation = useMutation({
     mutationFn: async ({ id, ...updates }: { id: string } & Partial<Lead>) => {
+      // Si se está actualizando el origen o la provincia y no hay un usuario asignado,
+      // intentar aplicar las reglas
+      if ((updates.origin || updates.province) && !updates.assigned_to) {
+        const { data: currentLead } = await supabase
+          .from('leads')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        if (currentLead) {
+          const updatedLead = { ...currentLead, ...updates };
+          const assignedUser = await applyRules(updatedLead);
+          if (assignedUser) {
+            updates.assigned_to = assignedUser;
+          }
+        }
+      }
+
       const { data, error } = await supabase
         .from('leads')
         .update(updates)
@@ -205,6 +278,22 @@ export function useLeads(organizationId?: string, branchId?: string) {
     },
   });
 
+  const deleteLead = useMutation({
+    mutationFn: async ({ id, userRole }: { id: string; userRole: string }) => {
+      if (userRole !== 'super_admin') {
+        throw new Error('Solo un Super Admin puede eliminar leads');
+      }
+      const { error } = await supabase
+        .from('leads')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads', organizationId, branchId] });
+    },
+  });
+
   return {
     leads,
     loading: isLoading || loading,
@@ -213,6 +302,7 @@ export function useLeads(organizationId?: string, branchId?: string) {
     updateLead: updateLeadMutation,
     updateLeadStatus,
     updateLeadAssignment,
+    deleteLead,
     refetch
   };
 } 

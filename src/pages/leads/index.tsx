@@ -6,7 +6,7 @@ import { formatDate } from '@/lib/utils/dates';
 import { generateInquiryNumber } from '@/lib/utils/strings';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLeads } from '@/hooks/useLeads';
-import { LeadModal, LeadHistoryModal, LeadTasksModal } from '@/components/modals';
+import { LeadModal, LeadHistoryModal, LeadTasksModal, WhatsAppModal } from '@/components/modals';
 import Select, { SingleValue, ActionMeta } from 'react-select';
 import { Badge } from "@/components/ui/badge"
 import {
@@ -63,6 +63,9 @@ export function LeadsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [activeFilters, setActiveFilters] = useState<Array<{ field: string; value: string }>>([]);
+  const [selectedLeads, setSelectedLeads] = useState<Lead[]>([]);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [selectedLeadForWA, setSelectedLeadForWA] = useState<Lead | null>(null);
 
   const {
     leads,
@@ -71,6 +74,7 @@ export function LeadsPage() {
     updateLead: updateLeadMutation,
     updateLeadStatus,
     updateLeadAssignment,
+    deleteLead,
   } = useLeads(currentOrganization?.id, currentBranch?.id);
 
   useEffect(() => {
@@ -221,7 +225,6 @@ export function LeadsPage() {
 
   const filteredLeads = leads.filter((lead) => {
     return (
-      (lead.converted_to_contact === null || lead.converted_to_contact === false) &&
       (filters.status === 'all' || !filters.status ? true : lead.status === filters.status) &&
       (filters.assignedTo === 'all' || !filters.assignedTo ? true : lead.assigned_to === filters.assignedTo) &&
       (filters.name ? lead.full_name.toLowerCase().includes(filters.name.toLowerCase()) : true) &&
@@ -241,7 +244,11 @@ export function LeadsPage() {
   const handleFilterChange = (field: string, value: string) => {
     setFilters(prev => ({ ...prev, [field]: value }));
     if (value) {
-      setActiveFilters(prev => [...prev, { field, value }]);
+      setActiveFilters(prev => {
+        // Elimina el filtro anterior de ese campo y agrega el nuevo
+        const filtered = prev.filter(f => f.field !== field);
+        return [...filtered, { field, value }];
+      });
     } else {
       setActiveFilters(prev => prev.filter(f => f.field !== field));
     }
@@ -250,6 +257,23 @@ export function LeadsPage() {
   const removeFilter = (field: string) => {
     setFilters(prev => ({ ...prev, [field]: '' }));
     setActiveFilters(prev => prev.filter(f => f.field !== field));
+  };
+
+  const handleBulkAssign = async (agentId: string) => {
+    try {
+      await Promise.all(
+        selectedLeads.map(lead =>
+          updateLeadAssignment.mutateAsync({
+            leadId: lead.id,
+            agentId: agentId === 'unassigned' ? null : agentId,
+          })
+        )
+      );
+      setSelectedLeads([]);
+      toast.success('Leads asignados correctamente');
+    } catch (error) {
+      toast.error('Error al asignar los leads');
+    }
   };
 
   return (
@@ -269,6 +293,29 @@ export function LeadsPage() {
             </button>
           </div>
         </div>
+        {/* Asignación múltiple */}
+        {selectedLeads.length > 0 && (
+          <div className="flex items-center gap-2 mb-2">
+            <Select
+              options={agents.map(agent => ({ value: agent.id, label: agent.full_name }))}
+              onChange={option => {
+                if (option && option.value) {
+                  handleBulkAssign(option.value);
+                }
+              }}
+              placeholder="Asignar a..."
+              className="w-60"
+              isSearchable
+            />
+            <span className="text-xs">{selectedLeads.length} leads seleccionados</span>
+            <button
+              className="text-xs text-gray-500 hover:text-gray-700 ml-2"
+              onClick={() => setSelectedLeads([])}
+            >
+              Limpiar selección
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Filtros */}
@@ -453,7 +500,19 @@ export function LeadsPage() {
           <table className="min-w-full divide-y divide-gray-200 table-fixed">
             <thead className="bg-gray-50">
               <tr>
-                <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[120px]">Número</th>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-8">
+                  <input
+                    type="checkbox"
+                    checked={selectedLeads.length === paginatedLeads.length && paginatedLeads.length > 0}
+                    onChange={e => {
+                      if (e.target.checked) {
+                        setSelectedLeads(paginatedLeads);
+                      } else {
+                        setSelectedLeads([]);
+                      }
+                    }}
+                  />
+                </th>
                 <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
                 <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
                 <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Teléfono</th>
@@ -486,13 +545,18 @@ export function LeadsPage() {
               ) : (
                 paginatedLeads.map((lead) => (
                   <tr key={lead.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-900">
-                      <div className="flex items-center space-x-2">
-                        {leadsWithTasks.has(lead.id) && (
-                          <div className="w-2 h-2 rounded-full bg-blue-500" title="Tiene tareas pendientes" />
-                        )}
-                        <span>{lead.inquiry_number}</span>
-                      </div>
+                    <td className="px-2 py-2 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={selectedLeads.some(l => l.id === lead.id)}
+                        onChange={e => {
+                          if (e.target.checked) {
+                            setSelectedLeads([...selectedLeads, lead]);
+                          } else {
+                            setSelectedLeads(selectedLeads.filter(l => l.id !== lead.id));
+                          }
+                        }}
+                      />
                     </td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-900">{lead.full_name}</td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs">
@@ -525,7 +589,30 @@ export function LeadsPage() {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </td>
-                    <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-900">{formatPhoneNumber(lead.phone)}</td>
+                    <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-900">
+                      <div className="flex items-center gap-2">
+                        {formatPhoneNumber(lead.phone)}
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            setSelectedLeadForWA(lead);
+                            setIsWhatsAppModalOpen(true);
+                          }}
+                          className="p-1 rounded-full hover:bg-gray-100"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 448 512"
+                            fill="currentColor"
+                            className="w-4 h-4 text-green-600"
+                          >
+                            <path
+                              d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-900">
                       <div className="max-w-[120px] truncate" title={lead.origin}>
                         {lead.origin}
@@ -605,6 +692,26 @@ export function LeadsPage() {
                             </svg>
                             Tareas
                           </DropdownMenuItem>
+                          {userRole === 'super_admin' && (
+                            <DropdownMenuItem
+                              onClick={async () => {
+                                if (window.confirm('¿Estás seguro de que deseas eliminar este lead? Esta acción no se puede deshacer.')) {
+                                  try {
+                                    await deleteLead.mutateAsync({ id: lead.id, userRole });
+                                    toast.success('Lead eliminado correctamente');
+                                  } catch (error: any) {
+                                    toast.error(error.message || 'Error al eliminar el lead');
+                                  }
+                                }
+                              }}
+                              className="cursor-pointer py-1 text-red-600 hover:bg-red-50"
+                            >
+                              <svg className="mr-2 h-3 w-3 text-red-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm2 5a1 1 0 000 2h4a1 1 0 100-2H8z" clipRule="evenodd" />
+                              </svg>
+                              Eliminar
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </td>
@@ -672,6 +779,22 @@ export function LeadsPage() {
           isOpen={isTasksModalOpen}
           onClose={() => setIsTasksModalOpen(false)}
           leadId={selectedLead?.id || ''}
+        />
+      )}
+
+      {/* WhatsApp Modal */}
+      {selectedLeadForWA && (
+        <WhatsAppModal
+          isOpen={isWhatsAppModalOpen}
+          onClose={() => {
+            setIsWhatsAppModalOpen(false);
+            setSelectedLeadForWA(null);
+          }}
+          contact={{
+            id: selectedLeadForWA.id,
+            full_name: selectedLeadForWA.full_name,
+            phone: selectedLeadForWA.phone,
+          }}
         />
       )}
     </div>

@@ -213,33 +213,48 @@ export interface Database {
           title: string
           description: string
           amount: number
-          status: 'draft' | 'pending' | 'approved' | 'rejected'
+          status: 'not_sent' | 'sent' | 'approved' | 'rejected'
           assigned_to: string
           organization_id: string
           branch_id: string
+          contact_id?: string | null
           created_at: string
+          public_url: string | null
+          pdf_url: string | null
+          sent_at: string | null
+          sent_by: string | null
         }
         Insert: {
           id?: string
           title: string
           description: string
           amount: number
-          status: 'draft' | 'pending' | 'approved' | 'rejected'
+          status?: 'not_sent' | 'sent' | 'approved' | 'rejected'
           assigned_to: string
           organization_id: string
           branch_id: string
+          contact_id?: string | null
           created_at?: string
+          public_url?: string | null
+          pdf_url?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
         }
         Update: {
           id?: string
           title?: string
           description?: string
           amount?: number
-          status?: 'draft' | 'pending' | 'approved' | 'rejected'
+          status?: 'not_sent' | 'sent' | 'approved' | 'rejected'
           assigned_to?: string
           organization_id?: string
           branch_id?: string
+          contact_id?: string | null
           created_at?: string
+          public_url?: string | null
+          pdf_url?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
         }
       }
     }

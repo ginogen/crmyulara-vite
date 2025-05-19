@@ -176,4 +176,17 @@ export type FacebookLead = {
   converted_to_lead: boolean;
   lead_id?: string;
   conversion_date?: string;
-}; 
+};
+
+export type RuleType = 'campaign' | 'province';
+
+export interface Rule {
+  id: string;
+  organization_id: string;
+  type: RuleType;
+  condition: string;
+  assigned_users: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+} 

@@ -5,6 +5,8 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Breadcrumb } from '@/components/ui/Breadcrumb';
+import { UserModal } from '@/components/modals/UserModal';
+import { createClient as createAdminClient } from '@supabase/supabase-js';
 
 type User = {
   id: string;
@@ -47,9 +49,15 @@ export function UsersPage() {
   const { user } = useAuth();
   const userRole: UserRole = 'super_admin'; // Valor fijo para pruebas
   const supabase = createClient();
+  const [organizations, setOrganizations] = useState<{ id: string; name: string }[]>([]);
+  const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | undefined>();
 
   useEffect(() => {
     fetchUsers();
+    fetchOrganizations();
+    fetchBranches();
   }, []);
 
   const fetchUsers = async () => {
@@ -71,9 +79,78 @@ export function UsersPage() {
     }
   };
 
+  const fetchOrganizations = async () => {
+    const { data, error } = await supabase
+      .from('organizations')
+      .select('id, name');
+    if (!error && data) setOrganizations(data);
+  };
+
+  const fetchBranches = async () => {
+    const { data, error } = await supabase
+      .from('branches')
+      .select('id, name');
+    if (!error && data) setBranches(data);
+  };
+
+  const getOrgName = (id?: string | null) => organizations.find(o => o.id === id)?.name || '';
+  const getBranchName = (id?: string | null) => branches.find(b => b.id === id)?.name || '';
+
   const handleEditUser = (userId: string) => {
-    // Implementar edición de usuario
-    console.log('Editar usuario:', userId);
+    const user = users.find(u => u.id === userId);
+    setSelectedUser(user);
+    setIsUserModalOpen(true);
+  };
+
+  const handleNewUser = () => {
+    setSelectedUser(undefined);
+    setIsUserModalOpen(true);
+  };
+
+  const handleUserSubmit = async (form: any) => {
+    try {
+      if (selectedUser) {
+        // Actualizar usuario existente
+        const { error } = await supabase
+          .from('users')
+          .update({
+            full_name: form.full_name,
+            email: form.email,
+            role: form.role,
+            organization_id: form.organization_id,
+            branch_id: form.branch_id,
+          })
+          .eq('id', selectedUser.id);
+        if (error) throw error;
+      } else {
+        // Crear usuario nuevo usando función serverless
+        const res = await fetch('/.netlify/functions/create-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(form),
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || 'Error al crear usuario');
+      }
+      setIsUserModalOpen(false);
+      fetchUsers();
+    } catch (err: any) {
+      alert(err.message || 'Error al guardar usuario');
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!window.confirm('¿Estás seguro de que deseas eliminar este usuario?')) return;
+    try {
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', userId);
+      if (error) throw error;
+      fetchUsers();
+    } catch (err: any) {
+      alert(err.message || 'Error al eliminar usuario');
+    }
   };
 
   const filteredUsers = users.filter((user) => {
@@ -143,7 +220,7 @@ export function UsersPage() {
 
         <div className="sm:flex sm:items-center sm:justify-between">
           <h1 className="text-2xl font-semibold text-gray-900">Usuarios</h1>
-          <Button>
+          <Button onClick={handleNewUser}>
             Nuevo Usuario
           </Button>
         </div>
@@ -201,10 +278,10 @@ export function UsersPage() {
                     Rol
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Estado
+                    Organización
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Organización / Sucursal
+                    Sucursal
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Acciones
@@ -242,20 +319,11 @@ export function UsersPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {getRoleLabel(user.role)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
-                            getStatusStyles(user.status).bg
-                          } ${getStatusStyles(user.status).text}`}
-                        >
-                          {getStatusLabel(user.status)}
-                        </span>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {user.organization_id ? getOrgName(user.organization_id) : 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {user.organization_id ? `Org: ${user.organization_id}` : ''}
-                        {user.organization_id && user.branch_id ? ' / ' : ''}
-                        {user.branch_id ? `Sucursal: ${user.branch_id}` : ''}
-                        {!user.organization_id && !user.branch_id && 'N/A'}
+                        {user.branch_id ? getBranchName(user.branch_id) : 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <Button
@@ -265,6 +333,16 @@ export function UsersPage() {
                         >
                           Editar
                         </Button>
+                        {(userRole === 'super_admin' || userRole === 'org_admin') && (
+                          <Button
+                            onClick={() => handleDeleteUser(user.id)}
+                            variant="destructive"
+                            size="sm"
+                            className="ml-2"
+                          >
+                            Eliminar
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -274,6 +352,14 @@ export function UsersPage() {
           </div>
         </div>
       </div>
+      <UserModal
+        isOpen={isUserModalOpen}
+        onClose={() => setIsUserModalOpen(false)}
+        user={selectedUser}
+        onSubmit={handleUserSubmit}
+        organizations={organizations}
+        branches={branches}
+      />
     </>
   );
 } 

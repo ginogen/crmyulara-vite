@@ -27,8 +27,10 @@ interface Branch {
 }
 
 // Definir el tipo DBUser para usuarios de la base de datos
+type UserRole = 'super_admin' | 'org_admin' | 'branch_manager' | 'sales_agent';
+
 type DBUser = User & {
-  role?: string;
+  role?: UserRole;
   user_metadata?: {
     name?: string;
   };
@@ -46,7 +48,7 @@ interface AuthContextType {
   signUp: (email: string, password: string) => Promise<void>;
   setCurrentOrganization: (org: Organization) => void;
   setCurrentBranch: (branch: Branch) => void;
-  userRole: string | null;
+  userRole: UserRole | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -54,7 +56,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<DBUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
   
   // Estados para organizaciones y sucursales
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -93,9 +95,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             throw branchesError;
           }
           
-          // 3. Determinar el rol del usuario (en un entorno real, esto vendría de la base de datos)
-          // Para esta demo, asignamos super_admin
-          setUserRole('super_admin');
+          // Obtener el rol del usuario desde la base de datos
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', user.id)
+            .single();
+            
+          if (userError) {
+            console.error('Error al obtener el rol del usuario:', userError);
+            throw userError;
+          }
+
+          console.log('Datos del usuario obtenidos:', userData);
+          console.log('ID del usuario:', user.id);
+          
+          if (userData?.role) {
+            console.log('Estableciendo rol del usuario:', userData.role);
+            setUserRole(userData.role);
+          } else {
+            console.warn('No se encontró rol para el usuario');
+            setUserRole('sales_agent'); // Rol por defecto
+          }
           
           console.log('Datos cargados de Supabase:', {
             organizaciones: orgsData.length,
