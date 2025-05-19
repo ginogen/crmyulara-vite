@@ -145,14 +145,24 @@ export function UsersPage() {
   const handleDeleteUser = async (userId: string) => {
     if (!window.confirm('¿Estás seguro de que deseas eliminar este usuario?')) return;
     try {
-      const { error } = await supabase
+      // Eliminar directamente de la tabla users primero
+      const { error: deleteError } = await supabase
         .from('users')
         .delete()
         .eq('id', userId);
-      if (error) throw error;
+
+      if (deleteError) {
+        console.error('Error al eliminar de la tabla users:', deleteError);
+        throw deleteError;
+      }
+
       fetchUsers();
+      alert('Usuario eliminado exitosamente');
     } catch (err: any) {
-      alert(err.message || 'Error al eliminar usuario');
+      console.error('Error completo:', err);
+      alert(`Error al eliminar usuario: ${err.message || 'Error desconocido'}`);
+      // Si hubo un error, refrescar la lista de usuarios para asegurar consistencia
+      fetchUsers();
     }
   };
 
