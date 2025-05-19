@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Dialog } from '@headlessui/react';
 
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutos
-const WARNING_TIMEOUT = 5 * 60 * 1000; // 5 minutos
+const WARNING_TIMEOUT = 10 * 60 * 1000; // 5 minutos
 
 export function InactivityHandler() {
   const { signOut } = useAuth();

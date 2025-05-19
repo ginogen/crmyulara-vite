@@ -32,6 +32,7 @@ export function UserModal({
     role: 'sales_agent',
     organization_id: '',
     branch_id: '',
+    password: '',
   });
 
   useEffect(() => {
@@ -42,6 +43,7 @@ export function UserModal({
         role: user.role || 'sales_agent',
         organization_id: user.organization_id || '',
         branch_id: user.branch_id || '',
+        password: '',
       });
     } else {
       setForm({
@@ -50,6 +52,7 @@ export function UserModal({
         role: 'sales_agent',
         organization_id: '',
         branch_id: '',
+        password: '',
       });
     }
   }, [user, isOpen]);
@@ -102,6 +105,18 @@ export function UserModal({
                 required
               />
             </div>
+            {!user && (
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Contraseña</label>
+                <Input
+                  type="password"
+                  value={form.password}
+                  onChange={e => handleChange('password', e.target.value)}
+                  required={!user}
+                  minLength={6}
+                />
+              </div>
+            )}
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Rol</label>
               <Select value={form.role} onValueChange={v => handleChange('role', v)}>

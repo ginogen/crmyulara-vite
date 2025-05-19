@@ -127,7 +127,10 @@ export function UsersPage() {
         const res = await fetch('/.netlify/functions/create-user', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(form),
+          body: JSON.stringify({
+            ...form,
+            password: form.password, // Incluir la contraseña para nuevos usuarios
+          }),
         });
         const result = await res.json();
         if (!res.ok) throw new Error(result.error || 'Error al crear usuario');
