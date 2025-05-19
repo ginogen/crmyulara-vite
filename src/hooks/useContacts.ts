@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/contexts/AuthContext';
 
 type Contact = {
   id: string;
@@ -22,6 +23,7 @@ export const useContacts = (organizationId?: string, branchId?: string) => {
   const [error, setError] = useState<string | null>(null);
   const supabase = createClient();
   const queryClient = useQueryClient();
+  const { user, userRole } = useAuth();
 
   // Si no tenemos organizationId o branchId, devolver una lista vacía y loading=false
   useEffect(() => {
@@ -32,19 +34,33 @@ export const useContacts = (organizationId?: string, branchId?: string) => {
   }, [organizationId, branchId]);
 
   const { data, isLoading: queryLoading, refetch } = useQuery({
-    queryKey: ['contacts', organizationId, branchId],
+    queryKey: ['contacts', organizationId, branchId, userRole, user?.id],
     queryFn: async () => {
       if (!organizationId || !branchId) {
         return [];
       }
 
       try {
-        const { data, error } = await supabase
+        let query = supabase
           .from('contacts')
           .select('*')
-          .eq('organization_id', organizationId)
-          .eq('branch_id', branchId)
           .order('created_at', { ascending: false });
+
+        // Aplicar filtros según el rol del usuario
+        if (userRole === 'super_admin') {
+          // Super admin puede ver todos los contactos
+        } else if (userRole === 'org_admin') {
+          // Org admin solo puede ver contactos de su organización
+          query = query.eq('organization_id', organizationId);
+        } else {
+          // branch_manager y sales_agent solo pueden ver contactos asignados a ellos
+          query = query
+            .eq('organization_id', organizationId)
+            .eq('branch_id', branchId)
+            .eq('assigned_to', user?.id);
+        }
+
+        const { data, error } = await query;
 
         if (error) throw error;
         return data || [];
@@ -54,7 +70,7 @@ export const useContacts = (organizationId?: string, branchId?: string) => {
         return [];
       }
     },
-    enabled: !!organizationId && !!branchId,
+    enabled: !!organizationId && !!branchId && !!userRole && !!user?.id,
   });
 
   // Actualizar el estado local cuando los datos de la consulta cambian

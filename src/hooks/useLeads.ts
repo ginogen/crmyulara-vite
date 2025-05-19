@@ -3,6 +3,7 @@ import { createClient } from '../lib/supabase/client';
 import type { Database } from '../lib/supabase/database.types';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Rule } from '@/types/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 type Lead = Database['public']['Tables']['leads']['Row'];
 
@@ -17,6 +18,7 @@ export function useLeads(organizationId?: string, branchId?: string) {
   const [error, setError] = useState<string | null>(null);
   const supabase = createClient();
   const queryClient = useQueryClient();
+  const { user, userRole } = useAuth();
 
   // Función para obtener las reglas activas
   const getActiveRules = async (orgId: string): Promise<Rule[]> => {
@@ -69,29 +71,43 @@ export function useLeads(organizationId?: string, branchId?: string) {
   }, [organizationId, branchId]);
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['leads', organizationId, branchId],
+    queryKey: ['leads', organizationId, branchId, userRole, user?.id],
     queryFn: async () => {
       if (!organizationId || !branchId) {
         return [];
       }
 
       try {
-        const { data, error } = await supabase
+        let query = supabase
           .from('leads')
           .select('*')
-          .eq('organization_id', organizationId)
-          .eq('branch_id', branchId)
           .order('created_at', { ascending: false });
+
+        // Aplicar filtros según el rol del usuario
+        if (userRole === 'super_admin') {
+          // Super admin puede ver todos los leads
+        } else if (userRole === 'org_admin') {
+          // Org admin solo puede ver leads de su organización
+          query = query.eq('organization_id', organizationId);
+        } else {
+          // branch_manager y sales_agent solo pueden ver leads asignados a ellos
+          query = query
+            .eq('organization_id', organizationId)
+            .eq('branch_id', branchId)
+            .eq('assigned_to', user?.id);
+        }
+
+        const { data, error } = await query;
 
         if (error) throw error;
         return data || [];
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Error al cargar los leads';
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Error al cargar los leads';
         setError(errorMessage);
         return [];
       }
     },
-    enabled: !!organizationId && !!branchId,
+    enabled: !!organizationId && !!branchId && !!userRole && !!user?.id,
   });
 
   // Actualizar el estado local cuando los datos de la consulta cambian

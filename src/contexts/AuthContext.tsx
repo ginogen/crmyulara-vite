@@ -73,37 +73,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           setLoading(true);
           
-          // 1. Cargar organizaciones desde Supabase
-          const { data: orgsData, error: orgsError } = await supabase
-            .from('organizations')
-            .select('id, name, description, status, contact_name, contact_email, contact_phone')
-            .eq('status', 'active')
-            .order('name');
-            
-          if (orgsError) {
-            throw orgsError;
-          }
-          
-          // 2. Cargar sucursales desde Supabase
-          const { data: branchesData, error: branchesError } = await supabase
-            .from('branches')
-            .select('id, name, organization_id, description, status, address, city, province, phone, email')
-            .eq('status', 'active')
-            .order('name');
-            
-          if (branchesError) {
-            throw branchesError;
-          }
-          
-          // Obtener el rol del usuario desde la base de datos
+          // 1. Obtener los datos del usuario incluyendo su organización y sucursal
           const { data: userData, error: userError } = await supabase
             .from('users')
-            .select('role')
+            .select(`
+              role,
+              organization_id,
+              branch_id
+            `)
             .eq('id', user.id)
             .single();
             
           if (userError) {
-            console.error('Error al obtener el rol del usuario:', userError);
+            console.error('Error al obtener datos del usuario:', userError);
             throw userError;
           }
 
@@ -118,6 +100,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUserRole('sales_agent'); // Rol por defecto
           }
           
+          // 2. Cargar organizaciones desde Supabase
+          const { data: orgsData, error: orgsError } = await supabase
+            .from('organizations')
+            .select('id, name, description, status, contact_name, contact_email, contact_phone')
+            .eq('status', 'active')
+            .order('name');
+            
+          if (orgsError) {
+            throw orgsError;
+          }
+          
+          // 3. Cargar sucursales desde Supabase
+          const { data: branchesData, error: branchesError } = await supabase
+            .from('branches')
+            .select('id, name, organization_id, description, status, address, city, province, phone, email')
+            .eq('status', 'active')
+            .order('name');
+            
+          if (branchesError) {
+            throw branchesError;
+          }
+          
           console.log('Datos cargados de Supabase:', {
             organizaciones: orgsData.length,
             sucursales: branchesData.length
@@ -127,15 +131,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setOrganizations(orgsData);
           setBranches(branchesData);
           
-          // 5. Establecer organización y sucursal por defecto si existen datos
-          if (orgsData.length > 0 && !currentOrganization) {
-            const defaultOrg = orgsData[0];
-            setCurrentOrganization(defaultOrg);
-            
-            // Buscar la primera sucursal de esta organización
-            const defaultBranch = branchesData.find(b => b.organization_id === defaultOrg.id);
-            if (defaultBranch) {
-              setCurrentBranch(defaultBranch);
+          // 5. Establecer la organización y sucursal asignada al usuario
+          if (userData.organization_id) {
+            const userOrg = orgsData.find(org => org.id === userData.organization_id);
+            if (userOrg) {
+              setCurrentOrganization(userOrg);
+              
+              // Si el usuario tiene una sucursal asignada, establecerla
+              if (userData.branch_id) {
+                const userBranch = branchesData.find(b => b.id === userData.branch_id);
+                if (userBranch) {
+                  setCurrentBranch(userBranch);
+                }
+              } else {
+                // Si no tiene sucursal asignada, establecer la primera de su organización
+                const firstBranch = branchesData.find(b => b.organization_id === userOrg.id);
+                if (firstBranch) {
+                  setCurrentBranch(firstBranch);
+                }
+              }
             }
           }
           

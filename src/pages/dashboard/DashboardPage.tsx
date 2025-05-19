@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { formatDate } from '@/lib/utils/dates';
 
 export default function DashboardPage() {
-  const { currentOrganization, currentBranch } = useAuth();
+  const { currentOrganization, currentBranch, userRole, user } = useAuth();
   const { leads, loading: leadsLoading } = useLeads(currentOrganization?.id, currentBranch?.id);
   const { contacts, isLoading: contactsLoading } = useContacts(currentOrganization?.id, currentBranch?.id);
   const { budgets, isLoading: budgetsLoading } = useBudgets(currentOrganization?.id, currentBranch?.id);
@@ -54,6 +54,22 @@ export default function DashboardPage() {
           setLoading(false);
           return;
         }
+
+        let baseQuery = supabase.from('leads').select('*', { count: 'exact' });
+
+        // Aplicar filtros según el rol del usuario
+        if (userRole === 'super_admin') {
+          // Super admin puede ver todos los leads
+        } else if (userRole === 'org_admin') {
+          // Org admin solo puede ver leads de su organización
+          baseQuery = baseQuery.eq('organization_id', currentOrganization.id);
+        } else {
+          // branch_manager y sales_agent solo pueden ver leads asignados a ellos
+          baseQuery = baseQuery
+            .eq('organization_id', currentOrganization.id)
+            .eq('branch_id', currentBranch.id)
+            .eq('assigned_to', user?.id);
+        }
         
         const [
           { count: totalLeadsCount },
@@ -61,21 +77,10 @@ export default function DashboardPage() {
           { count: interestedCount },
           { count: contactedCount }
         ] = await Promise.all([
-          supabase.from('leads').select('*', { count: 'exact' })
-            .eq('organization_id', currentOrganization.id)
-            .eq('branch_id', currentBranch.id),
-          supabase.from('leads').select('*', { count: 'exact' })
-            .eq('status', 'new')
-            .eq('organization_id', currentOrganization.id)
-            .eq('branch_id', currentBranch.id),
-          supabase.from('leads').select('*', { count: 'exact' })
-            .eq('status', 'interested')
-            .eq('organization_id', currentOrganization.id)
-            .eq('branch_id', currentBranch.id),
-          supabase.from('leads').select('*', { count: 'exact' })
-            .eq('status', 'contacted')
-            .eq('organization_id', currentOrganization.id)
-            .eq('branch_id', currentBranch.id)
+          baseQuery,
+          baseQuery.eq('status', 'new'),
+          baseQuery.eq('status', 'interested'),
+          baseQuery.eq('status', 'contacted')
         ]);
 
         setStats({
@@ -92,80 +97,99 @@ export default function DashboardPage() {
     }
 
     fetchStats();
-  }, [supabase, currentOrganization?.id, currentBranch?.id]);
+  }, [supabase, currentOrganization?.id, currentBranch?.id, userRole, user?.id]);
 
   useEffect(() => {
     const fetchPendingTasks = async () => {
       if (!currentOrganization?.id) return;
       
       try {
-        // Obtenemos todas las tareas pendientes
-        const { data: tasks, error } = await supabase
+        // Construir la consulta base para tareas pendientes
+        let tasksQuery = supabase
           .from('tasks')
           .select('*')
-          .eq('organization_id', currentOrganization.id)
           .eq('status', 'pending')
           .order('due_date', { ascending: true });
 
+        // Aplicar filtros según el rol del usuario
+        if (userRole === 'super_admin') {
+          // Super admin puede ver todas las tareas
+        } else if (userRole === 'org_admin') {
+          // Org admin solo puede ver tareas de su organización
+          tasksQuery = tasksQuery.eq('organization_id', currentOrganization.id);
+        } else {
+          // branch_manager y sales_agent solo pueden ver tareas asignadas a ellos
+          tasksQuery = tasksQuery
+            .eq('organization_id', currentOrganization.id)
+            .eq('branch_id', currentBranch?.id)
+            .eq('assigned_to', user?.id);
+        }
+
+        const { data: tasks, error } = await tasksQuery;
+
         if (error) throw error;
 
-        // Obtenemos los leads relacionados
-        const leadIds = tasks
-          .filter((task: { related_to_type: string; related_to_id: string }) => task.related_to_type === 'lead')
-          .map((task: { related_to_id: string }) => task.related_to_id);
-
-        const { data: leads } = await supabase
+        // Obtener los leads relacionados con filtros
+        let leadsQuery = supabase
           .from('leads')
-          .select('id, full_name, inquiry_number')
-          .in('id', leadIds);
-
-        // Obtenemos los contactos relacionados
-        const contactIds = tasks
-          .filter((task: { related_to_type: string; related_to_id: string }) => task.related_to_type === 'contact')
-          .map((task: { related_to_id: string }) => task.related_to_id);
-
-        const { data: contacts } = await supabase
-          .from('contacts')
-          .select('id, full_name, phone')
-          .in('id', contactIds);
-
-        // Combinamos la información
-        const allTasks = tasks.map((task) => {
-          if (task.related_to_type === 'lead') {
-            const lead = leads?.find((l) => l.id === task.related_to_id);
-            return {
-              id: task.id,
-              title: task.title,
-              description: task.description,
-              due_date: task.due_date,
-              related_to_type: task.related_to_type,
-              related_to_id: task.related_to_id,
-              related_name: lead?.full_name || 'Lead sin nombre',
-              related_info: lead?.inquiry_number || ''
-            };
-          } else {
-            const contact = contacts?.find((c) => c.id === task.related_to_id);
-            return {
-              id: task.id,
-              title: task.title,
-              description: task.description,
-              due_date: task.due_date,
-              related_to_type: task.related_to_type,
-              related_to_id: task.related_to_id,
-              related_name: contact?.full_name || 'Contacto sin nombre',
-              related_info: contact?.phone || ''
-            };
+          .select('id, full_name, inquiry_number');
+          
+        if (userRole !== 'super_admin') {
+          leadsQuery = leadsQuery.eq('organization_id', currentOrganization.id);
+          if (userRole !== 'org_admin') {
+            leadsQuery = leadsQuery
+              .eq('branch_id', currentBranch?.id)
+              .eq('assigned_to', user?.id);
           }
+        }
+
+        const { data: leads } = await leadsQuery;
+
+        // Obtener los contactos relacionados con filtros
+        let contactsQuery = supabase
+          .from('contacts')
+          .select('id, full_name, phone');
+          
+        if (userRole !== 'super_admin') {
+          contactsQuery = contactsQuery.eq('organization_id', currentOrganization.id);
+          if (userRole !== 'org_admin') {
+            contactsQuery = contactsQuery
+              .eq('branch_id', currentBranch?.id)
+              .eq('assigned_to', user?.id);
+          }
+        }
+
+        const { data: contacts } = await contactsQuery;
+
+        const formattedTasks = tasks?.map(task => {
+          let relatedName = '';
+          let relatedInfo = '';
+
+          if (task.related_to_type === 'lead') {
+            const relatedLead = leads?.find(lead => lead.id === task.related_to_id);
+            relatedName = relatedLead?.full_name || 'Lead no encontrado';
+            relatedInfo = relatedLead?.inquiry_number || '';
+          } else if (task.related_to_type === 'contact') {
+            const relatedContact = contacts?.find(contact => contact.id === task.related_to_id);
+            relatedName = relatedContact?.full_name || 'Contacto no encontrado';
+            relatedInfo = relatedContact?.phone || '';
+          }
+
+          return {
+            ...task,
+            related_name: relatedName,
+            related_info: relatedInfo
+          };
         });
 
-        setPendingTasks(allTasks);
+        setPendingTasks(formattedTasks || []);
       } catch (error) {
         console.error('Error al obtener tareas pendientes:', error);
       }
     };
 
     fetchPendingTasks();
-  }, [currentOrganization?.id]);
+  }, [currentOrganization?.id, currentBranch?.id, userRole, user?.id]);
 
   if (loading || leadsLoading || contactsLoading || budgetsLoading) {
     return (
@@ -179,8 +203,22 @@ export default function DashboardPage() {
   }
 
   // Prepare data for charts
-  const newLeadsCount = leads.filter(lead => lead.status === 'new').length;
-  const contactedLeadsCount = leads.filter(lead => lead.status === 'contacted').length;
+  const filteredLeads = leads.filter(lead => {
+    if (userRole === 'super_admin') {
+      return true;
+    } else if (userRole === 'org_admin') {
+      return lead.organization_id === currentOrganization?.id;
+    } else {
+      return (
+        lead.organization_id === currentOrganization?.id &&
+        lead.branch_id === currentBranch?.id &&
+        lead.assigned_to === user?.id
+      );
+    }
+  });
+
+  const newLeadsCount = filteredLeads.filter(lead => lead.status === 'new').length;
+  const contactedLeadsCount = filteredLeads.filter(lead => lead.status === 'contacted').length;
 
   const distributionData = [
     { name: 'Nuevos', value: newLeadsCount },
@@ -203,7 +241,7 @@ export default function DashboardPage() {
   const COLORS = ['#8884d8', '#00C49F'];
 
   // Filter recent leads and contacts
-  const recentLeads = leads
+  const recentLeads = filteredLeads
     .filter(lead => lead.status === 'new')
     .slice(0, 3);
   
