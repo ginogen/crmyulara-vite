@@ -41,27 +41,36 @@ function extractField(data: any, ...possibleFieldNames: string[]): string | unde
 }
 
 export const handler: Handler = async (event) => {
-  // Solo permitir peticiones POST
-  if (event.httpMethod !== 'POST') {
+  // Agregar headers CORS
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, x-webhook-secret',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  };
+
+  // Manejar preflight OPTIONS request
+  if (event.httpMethod === 'OPTIONS') {
     return {
-      statusCode: 405,
-      body: JSON.stringify({ error: 'Method not allowed' })
+      statusCode: 200,
+      headers,
+      body: ''
     };
   }
 
   try {
-    // Verificar el secreto del webhook
+    // Verificar que la petición tiene un secreto válido
     const authHeader = event.headers['x-webhook-secret'];
     const WEBHOOK_SECRET = process.env.MAKE_WEBHOOK_SECRET;
     
     if (!authHeader || authHeader !== WEBHOOK_SECRET) {
       return {
         statusCode: 401,
+        headers,
         body: JSON.stringify({ error: 'Unauthorized' })
       };
     }
 
-    // Parsear el cuerpo de la petición
+    // Obtener el cuerpo de la petición
     const data = JSON.parse(event.body || '{}');
     
     // Usar el cliente admin
@@ -71,6 +80,7 @@ export const handler: Handler = async (event) => {
     if (!data.organization_id || !data.branch_id || !data.form_id || !data.lead_data) {
       return {
         statusCode: 400,
+        headers,
         body: JSON.stringify({ error: 'Missing required fields' })
       };
     }
@@ -93,6 +103,7 @@ export const handler: Handler = async (event) => {
       console.error('Error guardando lead de Facebook:', saveError);
       return {
         statusCode: 500,
+        headers,
         body: JSON.stringify({ error: 'Error guardando lead' })
       };
     }
@@ -150,6 +161,7 @@ export const handler: Handler = async (event) => {
         if (leadError) {
           return {
             statusCode: 500,
+            headers,
             body: JSON.stringify({ 
               error: 'Error creando lead',
               details: leadError
@@ -170,6 +182,7 @@ export const handler: Handler = async (event) => {
 
         return {
           statusCode: 200,
+          headers,
           body: JSON.stringify({
             success: true,
             message: 'Lead guardado y convertido exitosamente',
@@ -180,6 +193,7 @@ export const handler: Handler = async (event) => {
         console.error('Error en la conversión del lead:', error);
         return {
           statusCode: 500,
+          headers,
           body: JSON.stringify({ 
             error: 'Error en la conversión del lead',
             details: error instanceof Error ? error.message : String(error)
@@ -190,6 +204,7 @@ export const handler: Handler = async (event) => {
 
     return {
       statusCode: 200,
+      headers,
       body: JSON.stringify({ 
         success: true, 
         message: 'Lead guardado exitosamente' 
@@ -200,6 +215,7 @@ export const handler: Handler = async (event) => {
     console.error('Error en webhook de Make:', error);
     return {
       statusCode: 500,
+      headers,
       body: JSON.stringify({ error: 'Internal server error' })
     };
   }

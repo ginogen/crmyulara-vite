@@ -14755,10 +14755,16 @@ function extractField(data, ...possibleFieldNames) {
   return void 0;
 }
 var handler = async (event) => {
-  if (event.httpMethod !== "POST") {
+  const headers = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type, x-webhook-secret",
+    "Access-Control-Allow-Methods": "POST, OPTIONS"
+  };
+  if (event.httpMethod === "OPTIONS") {
     return {
-      statusCode: 405,
-      body: JSON.stringify({ error: "Method not allowed" })
+      statusCode: 200,
+      headers,
+      body: ""
     };
   }
   try {
@@ -14767,6 +14773,7 @@ var handler = async (event) => {
     if (!authHeader || authHeader !== WEBHOOK_SECRET) {
       return {
         statusCode: 401,
+        headers,
         body: JSON.stringify({ error: "Unauthorized" })
       };
     }
@@ -14775,6 +14782,7 @@ var handler = async (event) => {
     if (!data.organization_id || !data.branch_id || !data.form_id || !data.lead_data) {
       return {
         statusCode: 400,
+        headers,
         body: JSON.stringify({ error: "Missing required fields" })
       };
     }
@@ -14792,6 +14800,7 @@ var handler = async (event) => {
       console.error("Error guardando lead de Facebook:", saveError);
       return {
         statusCode: 500,
+        headers,
         body: JSON.stringify({ error: "Error guardando lead" })
       };
     }
@@ -14834,6 +14843,7 @@ var handler = async (event) => {
         if (leadError) {
           return {
             statusCode: 500,
+            headers,
             body: JSON.stringify({
               error: "Error creando lead",
               details: leadError
@@ -14848,6 +14858,7 @@ var handler = async (event) => {
         }).eq("facebook_lead_id", data.facebook_lead_id);
         return {
           statusCode: 200,
+          headers,
           body: JSON.stringify({
             success: true,
             message: "Lead guardado y convertido exitosamente",
@@ -14858,6 +14869,7 @@ var handler = async (event) => {
         console.error("Error en la conversi\xF3n del lead:", error);
         return {
           statusCode: 500,
+          headers,
           body: JSON.stringify({
             error: "Error en la conversi\xF3n del lead",
             details: error instanceof Error ? error.message : String(error)
@@ -14867,6 +14879,7 @@ var handler = async (event) => {
     }
     return {
       statusCode: 200,
+      headers,
       body: JSON.stringify({
         success: true,
         message: "Lead guardado exitosamente"
@@ -14876,6 +14889,7 @@ var handler = async (event) => {
     console.error("Error en webhook de Make:", error);
     return {
       statusCode: 500,
+      headers,
       body: JSON.stringify({ error: "Internal server error" })
     };
   }
