@@ -28,6 +28,7 @@ const statusLabels: Record<Lead['status'], string> = {
   reserved: 'Reservado',
   liquidated: 'Liquidado',
   effective_reservation: 'Reserva Efectiva',
+  archived: 'Archivado',
 };
 
 const statusColors: Record<Lead['status'], { bg: string; text: string }> = {
@@ -39,6 +40,7 @@ const statusColors: Record<Lead['status'], { bg: string; text: string }> = {
   reserved: { bg: 'bg-purple-100', text: 'text-purple-800' },
   liquidated: { bg: 'bg-red-100', text: 'text-red-800' },
   effective_reservation: { bg: 'bg-emerald-100', text: 'text-emerald-800' },
+  archived: { bg: 'bg-gray-300', text: 'text-gray-600' },
 };
 
 export function LeadsPage() {
@@ -61,12 +63,14 @@ export function LeadsPage() {
   const [leadsWithTasks, setLeadsWithTasks] = useState<Set<string>>(new Set());
   const supabase = createClient();
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [activeFilters, setActiveFilters] = useState<Array<{ field: string; value: string }>>([]);
   const [selectedLeads, setSelectedLeads] = useState<Lead[]>([]);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [selectedLeadForWA, setSelectedLeadForWA] = useState<Lead | null>(null);
   const [isMakeModalOpen, setIsMakeModalOpen] = useState(false);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(true);
+  const [activeTab, setActiveTab] = useState<'activos' | 'archivados'>('activos');
 
   const {
     leads,
@@ -201,7 +205,9 @@ export function LeadsPage() {
       
       await updateLeadStatus.mutateAsync({ leadId, status: newStatus });
       
-      if (contactStates.includes(newStatus)) {
+      if (newStatus === 'archived') {
+        toast.info('Lead archivado correctamente');
+      } else if (contactStates.includes(newStatus)) {
         toast.success('Lead convertido a contacto exitosamente');
       } else {
         toast.success('Estado actualizado exitosamente');
@@ -215,17 +221,84 @@ export function LeadsPage() {
 
   const handleAssignmentChange = async (leadId: string, newAgentId: string) => {
     try {
-      await updateLeadAssignment.mutateAsync({
-        leadId,
-        agentId: newAgentId === 'unassigned' ? null : newAgentId,
-      });
+      // Buscar el lead actual
+      const lead = leads.find(l => l.id === leadId);
+      if (!lead) return;
+
+      // Si se asigna un agente (antes estaba sin asignar)
+      if (!lead.assigned_to && newAgentId !== 'unassigned') {
+        // 1. Asignar el agente
+        await updateLeadAssignment.mutateAsync({
+          leadId,
+          agentId: newAgentId,
+        });
+        // 2. Cambiar el estado a 'assigned' si no lo está
+        if (lead.status !== 'assigned') {
+          await updateLeadStatus.mutateAsync({ leadId, status: 'assigned' });
+        }
+        // 3. Convertir a contacto si no existe ya
+        // Consultar si ya existe un contacto con este lead
+        const { data: existingContacts, error } = await supabase
+          .from('contacts')
+          .select('id')
+          .eq('original_lead_id', leadId);
+        if (error) {
+          console.error('Error consultando contactos:', error);
+        }
+        if (!existingContacts || existingContacts.length === 0) {
+          // Crear el contacto manualmente (igual que en updateLeadStatus)
+          const { error: contactError } = await supabase
+            .from('contacts')
+            .insert([{
+              full_name: lead.full_name,
+              email: null,
+              phone: lead.phone,
+              city: lead.province,
+              province: lead.province,
+              tag: 'assigned',
+              organization_id: lead.organization_id,
+              branch_id: lead.branch_id,
+              assigned_to: newAgentId,
+              origin: lead.origin,
+              pax_count: lead.pax_count,
+              estimated_travel_date: lead.estimated_travel_date,
+              original_lead_id: lead.id,
+              original_lead_status: 'assigned',
+              original_lead_inquiry_number: lead.inquiry_number,
+            }]);
+          if (contactError) {
+            console.error('Error creando contacto:', contactError);
+          } else {
+            toast.info('El lead ha sido convertido en contacto y ahora aparece en la lista de Contactos.');
+          }
+        }
+        toast.success('Lead asignado y convertido a contacto');
+      } else if (lead.assigned_to && newAgentId === 'unassigned') {
+        // Si se desasigna (antes tenía agente)
+        await updateLeadAssignment.mutateAsync({
+          leadId,
+          agentId: null,
+        });
+        toast.success('Lead desasignado');
+      } else if (lead.assigned_to && newAgentId !== 'unassigned') {
+        // Cambio de un agente a otro
+        await updateLeadAssignment.mutateAsync({
+          leadId,
+          agentId: newAgentId,
+        });
+        toast.success('Lead reasignado');
+      }
     } catch (error) {
       console.error('Error updating lead assignment:', error);
+      toast.error('Error al actualizar la asignación del lead');
     }
   };
 
   const filteredLeads = leads.filter((lead) => {
-    return (
+    const isArchived = lead.status === 'archived';
+    if (activeTab === 'archivados') return isArchived;
+    // En activos, mostrar todos menos los archivados
+    return !isArchived && (
       (filters.status === 'all' || !filters.status ? true : lead.status === filters.status) &&
       (filters.assignedTo === 'all' || !filters.assignedTo ? true : lead.assigned_to === filters.assignedTo) &&
       (filters.name ? lead.full_name.toLowerCase().includes(filters.name.toLowerCase()) : true) &&
@@ -338,183 +411,228 @@ export function LeadsPage() {
       </div>
 
       {/* Filtros */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-2">
+        <div className="flex items-center justify-between mb-2">
           <h2 className="text-base font-medium">Filtros</h2>
-          {activeFilters.length > 0 && (
-            <button
-              onClick={() => {
-                setFilters({ status: '', assignedTo: '', search: '', name: '', phone: '', origin: '', pax: '' });
-                setActiveFilters([]);
-              }}
-              className="text-xs text-gray-500 hover:text-gray-700"
-            >
-              Limpiar todos
-            </button>
-          )}
+          <button
+            className="text-xs text-blue-600 hover:underline focus:outline-none"
+            onClick={() => setIsFiltersOpen(open => !open)}
+          >
+            {isFiltersOpen ? 'Ocultar filtros' : 'Mostrar filtros'}
+          </button>
         </div>
+        {isFiltersOpen && (
+          <>
+            <div className="flex items-center justify-between mb-4">
+              <div></div>
+              {activeFilters.length > 0 && (
+                <button
+                  onClick={() => {
+                    setFilters({ status: '', assignedTo: '', search: '', name: '', phone: '', origin: '', pax: '' });
+                    setActiveFilters([]);
+                  }}
+                  className="text-xs text-gray-500 hover:text-gray-700"
+                >
+                  Limpiar todos
+                </button>
+              )}
+            </div>
 
-        {/* Resumen de filtros y resultados */}
-        <div className="mb-4 p-3 bg-gray-50 rounded-md">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <span className="text-xs font-medium text-gray-700">Estás viendo:</span>
-              {activeFilters.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {activeFilters.map((filter, index) => (
-                    <span key={index} className="text-xs text-gray-600">
+            {/* Resumen de filtros y resultados */}
+            <div className="mb-4 p-3 bg-gray-50 rounded-md">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs font-medium text-gray-700">Estás viendo:</span>
+                  {activeFilters.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {activeFilters.map((filter, index) => (
+                        <span key={index} className="text-xs text-gray-600">
+                          {filter.field === 'status' ? 'Estado' :
+                           filter.field === 'assignedTo' ? 'Asignado a' :
+                           filter.field === 'search' ? 'Búsqueda' : filter.field}: {filter.value}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-gray-500">Todos los leads</span>
+                  )}
+                </div>
+                <span className="text-xs font-medium text-gray-700">
+                  {filteredLeads.length} {filteredLeads.length === 1 ? 'lead' : 'leads'} encontrados
+                </span>
+              </div>
+            </div>
+
+            {/* Indicadores de filtros activos */}
+            {activeFilters.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-4">
+                {activeFilters.map((filter, index) => (
+                  <div key={index} className="flex items-center gap-1 bg-blue-50 px-2 py-1 rounded-md text-xs">
+                    <span className="text-blue-700">
                       {filter.field === 'status' ? 'Estado' :
                        filter.field === 'assignedTo' ? 'Asignado a' :
                        filter.field === 'search' ? 'Búsqueda' : filter.field}: {filter.value}
                     </span>
-                  ))}
-                </div>
-              ) : (
-                <span className="text-xs text-gray-500">Todos los leads</span>
-              )}
-            </div>
-            <span className="text-xs font-medium text-gray-700">
-              {filteredLeads.length} {filteredLeads.length === 1 ? 'lead' : 'leads'} encontrados
-            </span>
-          </div>
-        </div>
-
-        {/* Indicadores de filtros activos */}
-        {activeFilters.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-4">
-            {activeFilters.map((filter, index) => (
-              <div key={index} className="flex items-center gap-1 bg-blue-50 px-2 py-1 rounded-md text-xs">
-                <span className="text-blue-700">
-                  {filter.field === 'status' ? 'Estado' :
-                   filter.field === 'assignedTo' ? 'Asignado a' :
-                   filter.field === 'search' ? 'Búsqueda' : filter.field}: {filter.value}
-                </span>
-                <button
-                  onClick={() => removeFilter(filter.field)}
-                  className="text-blue-500 hover:text-blue-700"
-                >
-                  <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </button>
+                    <button
+                      onClick={() => removeFilter(filter.field)}
+                      className="text-blue-500 hover:text-blue-700"
+                    >
+                      <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
+            )}
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-gray-700">
-              Nombre
-            </label>
-            <Input
-              placeholder="Buscar por nombre..."
-              value={filters.name || ''}
-              onChange={(e) => handleFilterChange('name', e.target.value)}
-              className="text-xs"
-            />
-          </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-gray-700">
+                  Nombre
+                </label>
+                <Input
+                  placeholder="Buscar por nombre..."
+                  value={filters.name || ''}
+                  onChange={(e) => handleFilterChange('name', e.target.value)}
+                  className="text-xs"
+                />
+              </div>
 
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-gray-700">
-              Teléfono
-            </label>
-            <Input
-              placeholder="Buscar por teléfono..."
-              value={filters.phone || ''}
-              onChange={(e) => handleFilterChange('phone', e.target.value)}
-              className="text-xs"
-            />
-          </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-gray-700">
+                  Teléfono
+                </label>
+                <Input
+                  placeholder="Buscar por teléfono..."
+                  value={filters.phone || ''}
+                  onChange={(e) => handleFilterChange('phone', e.target.value)}
+                  className="text-xs"
+                />
+              </div>
 
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-gray-700">
-              Origen
-            </label>
-            <Input
-              placeholder="Buscar por origen..."
-              value={filters.origin || ''}
-              onChange={(e) => handleFilterChange('origin', e.target.value)}
-              className="text-xs"
-            />
-          </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-gray-700">
+                  Origen
+                </label>
+                <Input
+                  placeholder="Buscar por origen..."
+                  value={filters.origin || ''}
+                  onChange={(e) => handleFilterChange('origin', e.target.value)}
+                  className="text-xs"
+                />
+              </div>
 
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-gray-700">
-              Pax
-            </label>
-            <Input
-              placeholder="Buscar por pax..."
-              value={filters.pax || ''}
-              onChange={(e) => handleFilterChange('pax', e.target.value)}
-              className="text-xs"
-              type="number"
-            />
-          </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-gray-700">
+                  Pax
+                </label>
+                <Input
+                  placeholder="Buscar por pax..."
+                  value={filters.pax || ''}
+                  onChange={(e) => handleFilterChange('pax', e.target.value)}
+                  className="text-xs"
+                  type="number"
+                />
+              </div>
 
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-gray-700">
-              Estado
-            </label>
-            <Select
-              options={[
-                { value: 'all', label: 'Todos los estados' },
-                ...Object.entries(statusLabels).map(([value, label]) => ({
-                  value,
-                  label
-                }))
-              ]}
-              value={filters.status ? { value: filters.status, label: statusLabels[filters.status as Lead['status']] } : { value: 'all', label: 'Todos los estados' }}
-              onChange={(option: { value: string; label: string } | null) => handleFilterChange('status', option?.value || '')}
-              className="text-xs"
-              classNamePrefix="select"
-              placeholder="Seleccionar estado..."
-              isClearable
-              isSearchable
-            />
-          </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-gray-700">
+                  Estado
+                </label>
+                <Select
+                  options={[
+                    { value: 'all', label: 'Todos los estados' },
+                    ...Object.entries(statusLabels).map(([value, label]) => ({
+                      value,
+                      label
+                    }))
+                  ]}
+                  value={filters.status ? { value: filters.status, label: statusLabels[filters.status as Lead['status']] } : { value: 'all', label: 'Todos los estados' }}
+                  onChange={(option: { value: string; label: string } | null) => handleFilterChange('status', option?.value || '')}
+                  className="text-xs"
+                  classNamePrefix="select"
+                  placeholder="Seleccionar estado..."
+                  isClearable
+                  isSearchable
+                />
+              </div>
 
-          {userRole !== 'sales_agent' && (
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-gray-700">
-                Asignado a
-              </label>
-              <Select
-                options={[
-                  { value: 'all', label: 'Todos los agentes' },
-                  ...agents.map(agent => ({ value: agent.id, label: agent.full_name }))
-                ]}
-                value={agents.find(agent => agent.id === filters.assignedTo) ? 
-                  { value: filters.assignedTo, label: agents.find(agent => agent.id === filters.assignedTo)?.full_name } :
-                  { value: 'all', label: 'Todos los agentes' }
-                }
-                onChange={(newValue: SingleValue<{ value: string; label: string | undefined }>) => 
-                  handleFilterChange('assignedTo', newValue?.value || '')}
-                className="text-xs"
-                classNamePrefix="select"
-                placeholder="Seleccionar agente..."
-                isClearable
-                isSearchable
-              />
+              {userRole !== 'sales_agent' && (
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-700">
+                    Asignado a
+                  </label>
+                  <Select
+                    options={[
+                      { value: 'all', label: 'Todos los agentes' },
+                      ...agents.map(agent => ({ value: agent.id, label: agent.full_name }))
+                    ]}
+                    value={agents.find(agent => agent.id === filters.assignedTo) ? 
+                      { value: filters.assignedTo, label: agents.find(agent => agent.id === filters.assignedTo)?.full_name } :
+                      { value: 'all', label: 'Todos los agentes' }
+                    }
+                    onChange={(newValue: SingleValue<{ value: string; label: string | undefined }>) => 
+                      handleFilterChange('assignedTo', newValue?.value || '')}
+                    className="text-xs"
+                    classNamePrefix="select"
+                    placeholder="Seleccionar agente..."
+                    isClearable
+                    isSearchable
+                  />
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-gray-700">
+                  Buscar
+                </label>
+                <Input
+                  placeholder="Buscar por nombre o teléfono..."
+                  value={filters.search || ''}
+                  onChange={(e) => handleFilterChange('search', e.target.value)}
+                  className="text-xs"
+                />
+              </div>
             </div>
-          )}
+          </>
+        )}
+      </div>
 
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-gray-700">
-              Buscar
-            </label>
-            <Input
-              placeholder="Buscar por nombre o teléfono..."
-              value={filters.search || ''}
-              onChange={(e) => handleFilterChange('search', e.target.value)}
-              className="text-xs"
-            />
-          </div>
-        </div>
+      {/* Tabs arriba de la tabla */}
+      <div className="flex gap-2 mb-2">
+        <button
+          className={`px-4 py-2 rounded-t-md font-semibold text-sm border-b-2 ${activeTab === 'activos' ? 'border-blue-600 text-blue-600 bg-white' : 'border-transparent text-gray-500 bg-gray-100'}`}
+          onClick={() => setActiveTab('activos')}
+        >
+          Leads activos
+        </button>
+        <button
+          className={`px-4 py-2 rounded-t-md font-semibold text-sm border-b-2 ${activeTab === 'archivados' ? 'border-blue-600 text-blue-600 bg-white' : 'border-transparent text-gray-500 bg-gray-100'}`}
+          onClick={() => setActiveTab('archivados')}
+        >
+          Archivados
+        </button>
       </div>
 
       {/* Tabla de Leads */}
       <div className="bg-white shadow-sm border border-gray-200 rounded-lg overflow-hidden w-full">
+        {/* Selector de cantidad por página */}
+        <div className="flex items-center justify-end px-4 py-2 bg-gray-50 border-b">
+          <label className="text-xs mr-2">Leads por página:</label>
+          <select
+            className="text-xs border rounded px-2 py-1"
+            value={itemsPerPage}
+            onChange={e => {
+              setItemsPerPage(Number(e.target.value));
+              setCurrentPage(1);
+            }}
+          >
+            {[10, 20, 30, 50, 100].map(num => (
+              <option key={num} value={num}>{num}</option>
+            ))}
+          </select>
+        </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 table-fixed">
             <thead className="bg-gray-50">
@@ -579,7 +697,7 @@ export function LeadsPage() {
                     </td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-900">{lead.full_name}</td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs">
-                      <DropdownMenu open={isStatusMenuOpen === lead.id} onOpenChange={() => setIsStatusMenuOpen(lead.id)}>
+                      <DropdownMenu open={isStatusMenuOpen === lead.id} onOpenChange={(open) => setIsStatusMenuOpen(open ? lead.id : null)}>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" className="h-6 w-full justify-start p-1">
                             <Badge
@@ -758,9 +876,17 @@ export function LeadsPage() {
                 <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
             </button>
-            <span className="text-xs text-gray-700">
-              Página {currentPage} de {totalPages}
-            </span>
+            <span className="text-xs">Página</span>
+            <select
+              className="text-xs border rounded px-2 py-1"
+              value={currentPage}
+              onChange={e => setCurrentPage(Number(e.target.value))}
+            >
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
+                <option key={pageNum} value={pageNum}>{pageNum}</option>
+              ))}
+            </select>
+            <span className="text-xs">de {totalPages}</span>
             <button
               onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages}

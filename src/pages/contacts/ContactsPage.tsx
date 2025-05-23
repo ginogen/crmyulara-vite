@@ -64,8 +64,9 @@ export function ContactsPage() {
   const [isManagementModalOpen, setIsManagementModalOpen] = useState(false);
   const [selectedContactForManagement, setSelectedContactForManagement] = useState<Contact | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [activeFilters, setActiveFilters] = useState<Array<{ field: string; value: string }>>([]);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(true);
   const [isTagsModalOpen, setIsTagsModalOpen] = useState(false);
   const [selectedTag, setSelectedTag] = useState<{ id: string; name: string; color: string } | null>(null);
   const [tags, setTags] = useState<Array<{ id: string; name: string; color: string }>>([]);
@@ -315,31 +316,67 @@ export function ContactsPage() {
         </div>
 
         {/* Filtros */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center justify-between mb-4">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-2">
+          <div className="flex items-center justify-between mb-2">
             <h2 className="text-base font-medium">Filtros</h2>
-            {activeFilters.length > 0 && (
-              <button
-                onClick={() => {
-                  setFilters({ name: '', city: '', tag: '', assignedTo: '', phone: '', email: '' });
-                  setActiveFilters([]);
-                }}
-                className="text-xs text-gray-500 hover:text-gray-700"
-              >
-                Limpiar todos
-              </button>
-            )}
+            <button
+              className="text-xs text-blue-600 hover:underline focus:outline-none"
+              onClick={() => setIsFiltersOpen(open => !open)}
+            >
+              {isFiltersOpen ? 'Ocultar filtros' : 'Mostrar filtros'}
+            </button>
           </div>
+          {isFiltersOpen && (
+            <>
+              <div className="flex items-center justify-between mb-4">
+                <div></div>
+                {activeFilters.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setFilters({ name: '', city: '', tag: '', assignedTo: '', phone: '', email: '' });
+                      setActiveFilters([]);
+                    }}
+                    className="text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    Limpiar todos
+                  </button>
+                )}
+              </div>
 
-          {/* Resumen de filtros y resultados */}
-          <div className="mb-4 p-3 bg-gray-50 rounded-md">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <span className="text-xs font-medium text-gray-700">Estás viendo:</span>
-                {activeFilters.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {activeFilters.map((filter, index) => (
-                      <span key={index} className="text-xs text-gray-600">
+              {/* Resumen de filtros y resultados */}
+              <div className="mb-4 p-3 bg-gray-50 rounded-md">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs font-medium text-gray-700">Estás viendo:</span>
+                    {activeFilters.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {activeFilters.map((filter, index) => (
+                          <span key={index} className="text-xs text-gray-600">
+                            {filter.field === 'name' ? 'Nombre' :
+                             filter.field === 'city' ? 'Ciudad' :
+                             filter.field === 'tag' ? 'Etiqueta' :
+                             filter.field === 'assignedTo' ? 'Asignado a' :
+                             filter.field === 'phone' ? 'Teléfono' :
+                             filter.field === 'email' ? 'Email' : filter.field}: {getFilterLabel(filter.field, filter.value)}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-500">Todos los contactos</span>
+                    )}
+                  </div>
+                  <span className="text-xs font-medium text-gray-700">
+                    {filteredContacts.length} {filteredContacts.length === 1 ? 'contacto' : 'contactos'} encontrados
+                  </span>
+                </div>
+              </div>
+
+              {/* Indicadores de filtros activos */}
+              {activeFilters.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {activeFilters.map((filter, index) => (
+                    <div key={index} className="flex items-center gap-1 bg-blue-50 px-2 py-1 rounded-md text-xs">
+                      <span className="text-blue-700">
                         {filter.field === 'name' ? 'Nombre' :
                          filter.field === 'city' ? 'Ciudad' :
                          filter.field === 'tag' ? 'Etiqueta' :
@@ -347,152 +384,149 @@ export function ContactsPage() {
                          filter.field === 'phone' ? 'Teléfono' :
                          filter.field === 'email' ? 'Email' : filter.field}: {getFilterLabel(filter.field, filter.value)}
                       </span>
-                    ))}
+                      <button
+                        onClick={() => removeFilter(filter.field)}
+                        className="text-blue-500 hover:text-blue-700"
+                      >
+                        <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-700">
+                    Nombre
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full p-1.5 text-xs border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Buscar por nombre..."
+                    value={filters.name}
+                    onChange={(e) => handleFilterChange('name', e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-700">
+                    Ciudad
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full p-1.5 text-xs border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Filtrar por ciudad..."
+                    value={filters.city}
+                    onChange={(e) => handleFilterChange('city', e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-700">
+                    Teléfono
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full p-1.5 text-xs border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Filtrar por teléfono..."
+                    value={filters.phone}
+                    onChange={(e) => handleFilterChange('phone', e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-700">
+                    Email
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full p-1.5 text-xs border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Filtrar por email..."
+                    value={filters.email}
+                    onChange={(e) => handleFilterChange('email', e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-700">
+                    Etiqueta
+                  </label>
+                  <Select
+                    options={[
+                      { value: '', label: 'Todas las etiquetas' },
+                      ...tags.map(tag => ({ value: tag.name, label: tag.name }))
+                    ]}
+                    value={selectedTag ? { value: selectedTag.name, label: selectedTag.name } : { value: '', label: 'Todas las etiquetas' }}
+                    onChange={(option: { value: string; label: string } | null) => {
+                      if (option) {
+                        const tag = tags.find(t => t.name === option.value);
+                        if (tag) {
+                          handleTagSelect(tag);
+                        } else {
+                          setSelectedTag(null);
+                          handleFilterChange('tag', '');
+                        }
+                      } else {
+                        setSelectedTag(null);
+                        handleFilterChange('tag', '');
+                      }
+                    }}
+                    className="text-xs"
+                    classNamePrefix="select"
+                    placeholder="Seleccionar etiqueta..."
+                    isClearable
+                    isSearchable
+                  />
+                </div>
+
+                {userRole !== 'sales_agent' && (
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-gray-700">
+                      Asignado a
+                    </label>
+                    <Select
+                      options={[
+                        { value: 'all', label: 'Todos los agentes' },
+                        ...agents.map(agent => ({ value: agent.id, label: agent.full_name }))
+                      ]}
+                      value={agents.find(agent => agent.id === filters.assignedTo) ? 
+                        { value: filters.assignedTo, label: agents.find(agent => agent.id === filters.assignedTo)?.full_name } :
+                        { value: 'all', label: 'Todos los agentes' }
+                      }
+                      onChange={(newValue: SingleValue<{ value: string; label: string | undefined }>) => handleFilterChange('assignedTo', newValue?.value || '')}
+                      className="text-xs"
+                      classNamePrefix="select"
+                      placeholder="Seleccionar agente..."
+                      isClearable
+                      isSearchable
+                    />
                   </div>
-                ) : (
-                  <span className="text-xs text-gray-500">Todos los contactos</span>
                 )}
               </div>
-              <span className="text-xs font-medium text-gray-700">
-                {filteredContacts.length} {filteredContacts.length === 1 ? 'contacto' : 'contactos'} encontrados
-              </span>
-            </div>
-          </div>
-
-          {/* Indicadores de filtros activos */}
-          {activeFilters.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-4">
-              {activeFilters.map((filter, index) => (
-                <div key={index} className="flex items-center gap-1 bg-blue-50 px-2 py-1 rounded-md text-xs">
-                  <span className="text-blue-700">
-                    {filter.field === 'name' ? 'Nombre' :
-                     filter.field === 'city' ? 'Ciudad' :
-                     filter.field === 'tag' ? 'Etiqueta' :
-                     filter.field === 'assignedTo' ? 'Asignado a' :
-                     filter.field === 'phone' ? 'Teléfono' :
-                     filter.field === 'email' ? 'Email' : filter.field}: {getFilterLabel(filter.field, filter.value)}
-                  </span>
-                  <button
-                    onClick={() => removeFilter(filter.field)}
-                    className="text-blue-500 hover:text-blue-700"
-                  >
-                    <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
-            </div>
+            </>
           )}
+        </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-gray-700">
-                Nombre
-              </label>
-              <input
-                type="text"
-                className="w-full p-1.5 text-xs border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Buscar por nombre..."
-                value={filters.name}
-                onChange={(e) => handleFilterChange('name', e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-gray-700">
-                Ciudad
-              </label>
-              <input
-                type="text"
-                className="w-full p-1.5 text-xs border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Filtrar por ciudad..."
-                value={filters.city}
-                onChange={(e) => handleFilterChange('city', e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-gray-700">
-                Teléfono
-              </label>
-              <input
-                type="text"
-                className="w-full p-1.5 text-xs border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Filtrar por teléfono..."
-                value={filters.phone}
-                onChange={(e) => handleFilterChange('phone', e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-gray-700">
-                Email
-              </label>
-              <input
-                type="text"
-                className="w-full p-1.5 text-xs border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Filtrar por email..."
-                value={filters.email}
-                onChange={(e) => handleFilterChange('email', e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-gray-700">
-                Etiqueta
-              </label>
-              <Select
-                options={[
-                  { value: '', label: 'Todas las etiquetas' },
-                  ...tags.map(tag => ({ value: tag.name, label: tag.name }))
-                ]}
-                value={selectedTag ? { value: selectedTag.name, label: selectedTag.name } : { value: '', label: 'Todas las etiquetas' }}
-                onChange={(option: { value: string; label: string } | null) => {
-                  if (option) {
-                    const tag = tags.find(t => t.name === option.value);
-                    if (tag) {
-                      handleTagSelect(tag);
-                    } else {
-                      setSelectedTag(null);
-                      handleFilterChange('tag', '');
-                    }
-                  } else {
-                    setSelectedTag(null);
-                    handleFilterChange('tag', '');
-                  }
-                }}
-                className="text-xs"
-                classNamePrefix="select"
-                placeholder="Seleccionar etiqueta..."
-                isClearable
-                isSearchable
-              />
-            </div>
-
-            {userRole !== 'sales_agent' && (
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-gray-700">
-                  Asignado a
-                </label>
-                <Select
-                  options={[
-                    { value: 'all', label: 'Todos los agentes' },
-                    ...agents.map(agent => ({ value: agent.id, label: agent.full_name }))
-                  ]}
-                  value={agents.find(agent => agent.id === filters.assignedTo) ? 
-                    { value: filters.assignedTo, label: agents.find(agent => agent.id === filters.assignedTo)?.full_name } :
-                    { value: 'all', label: 'Todos los agentes' }
-                  }
-                  onChange={(newValue: SingleValue<{ value: string; label: string | undefined }>) => handleFilterChange('assignedTo', newValue?.value || '')}
-                  className="text-xs"
-                  classNamePrefix="select"
-                  placeholder="Seleccionar agente..."
-                  isClearable
-                  isSearchable
-                />
-              </div>
-            )}
+        {/* Selector de cantidad por página y paginación */}
+        <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b">
+          <div></div>
+          <div className="flex items-center space-x-2">
+            <label className="text-xs mr-2">Contactos por página:</label>
+            <select
+              className="text-xs border rounded px-2 py-1"
+              value={itemsPerPage}
+              onChange={e => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+            >
+              {[10, 20, 30, 50, 100].map(num => (
+                <option key={num} value={num}>{num}</option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -663,7 +697,7 @@ export function ContactsPage() {
             </table>
           </div>
 
-          {/* Paginación */}
+          {/* Paginación abajo de la tabla */}
           <div className="flex items-center justify-between px-4 py-2 bg-white border-t">
             <div className="flex items-center">
               <span className="text-xs text-gray-700">
@@ -680,9 +714,17 @@ export function ContactsPage() {
                   <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
               </button>
-              <span className="text-xs text-gray-700">
-                Página {currentPage} de {totalPages}
-              </span>
+              <span className="text-xs">Página</span>
+              <select
+                className="text-xs border rounded px-2 py-1"
+                value={currentPage}
+                onChange={e => setCurrentPage(Number(e.target.value))}
+              >
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
+                  <option key={pageNum} value={pageNum}>{pageNum}</option>
+                ))}
+              </select>
+              <span className="text-xs">de {totalPages}</span>
               <button
                 onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                 disabled={currentPage === totalPages}

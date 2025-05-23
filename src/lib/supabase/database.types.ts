@@ -121,7 +121,7 @@ export interface Database {
           id: string
           inquiry_number: string
           full_name: string
-          status: 'new' | 'assigned' | 'contacted' | 'followed' | 'interested' | 'reserved' | 'liquidated' | 'effective_reservation'
+          status: 'new' | 'assigned' | 'contacted' | 'followed' | 'interested' | 'reserved' | 'liquidated' | 'effective_reservation' | 'archived'
           assigned_to: string | null
           origin: string
           province: string
@@ -137,7 +137,7 @@ export interface Database {
           id?: string
           inquiry_number: string
           full_name: string
-          status: 'new' | 'assigned' | 'contacted' | 'followed' | 'interested' | 'reserved' | 'liquidated' | 'effective_reservation'
+          status: 'new' | 'assigned' | 'contacted' | 'followed' | 'interested' | 'reserved' | 'liquidated' | 'effective_reservation' | 'archived'
           assigned_to?: string | null
           origin: string
           province: string
@@ -153,7 +153,7 @@ export interface Database {
           id?: string
           inquiry_number?: string
           full_name?: string
-          status?: 'new' | 'assigned' | 'contacted' | 'followed' | 'interested' | 'reserved' | 'liquidated' | 'effective_reservation'
+          status?: 'new' | 'assigned' | 'contacted' | 'followed' | 'interested' | 'reserved' | 'liquidated' | 'effective_reservation' | 'archived'
           assigned_to?: string | null
           origin?: string
           province?: string
