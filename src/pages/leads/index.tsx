@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
+import Papa from 'papaparse';
 
 const statusLabels: Record<Lead['status'], string> = {
   new: 'Nuevo',
@@ -43,6 +44,135 @@ const statusColors: Record<Lead['status'], { bg: string; text: string }> = {
   archived: { bg: 'bg-gray-300', text: 'text-gray-600' },
 };
 
+// Agregar el tipo para el modal de CSV
+interface CSVModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onUpload: (data: any[]) => void;
+}
+
+// Componente Modal para la carga de CSV
+const CSVUploadModal: React.FC<CSVModalProps> = ({ isOpen, onClose, onUpload }) => {
+  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) setFile(file);
+  };
+
+  const handleDownloadTemplate = () => {
+    const link = document.createElement('a');
+    link.href = '/templates/leads-template.csv';
+    link.download = 'plantilla-leads.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleSubmit = async () => {
+    if (!file) {
+      toast.error('Por favor seleccione un archivo CSV');
+      return;
+    }
+
+    setLoading(true);
+    Papa.parse(file, {
+      complete: (results) => {
+        setLoading(false);
+        if (results.data.length > 0) {
+          onUpload(results.data);
+          onClose();
+        } else {
+          toast.error('El archivo CSV está vacío');
+        }
+      },
+      header: true,
+      error: (error) => {
+        setLoading(false);
+        toast.error('Error al procesar el archivo CSV');
+        console.error('Error parsing CSV:', error);
+      }
+    });
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-[500px] max-h-[90vh] overflow-y-auto">
+        <h2 className="text-lg font-semibold mb-4">Cargar Leads desde CSV</h2>
+        
+        {/* Instrucciones y plantilla */}
+        <div className="mb-6 bg-blue-50 p-4 rounded-md">
+          <h3 className="text-sm font-medium text-blue-800 mb-2">Instrucciones:</h3>
+          <ol className="text-xs text-blue-700 list-decimal pl-4 space-y-1">
+            <li>Descarga la plantilla CSV de ejemplo</li>
+            <li>Llena los datos siguiendo el formato de la plantilla</li>
+            <li>Los campos nombre y teléfono son obligatorios</li>
+            <li>Guarda el archivo en formato CSV</li>
+            <li>Sube el archivo usando el botón de selección</li>
+          </ol>
+          <button
+            onClick={handleDownloadTemplate}
+            className="mt-3 text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded-md hover:bg-blue-200 inline-flex items-center"
+          >
+            <svg 
+              className="w-4 h-4 mr-1" 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={2} 
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+              />
+            </svg>
+            Descargar Plantilla CSV
+          </button>
+        </div>
+
+        {/* Selector de archivo */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Seleccionar archivo CSV
+          </label>
+          <input
+            type="file"
+            accept=".csv"
+            onChange={handleFileUpload}
+            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+          />
+          {file && (
+            <p className="mt-2 text-xs text-gray-500">
+              Archivo seleccionado: {file.name}
+            </p>
+          )}
+        </div>
+
+        {/* Botones de acción */}
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            disabled={loading}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={!file || loading}
+          >
+            {loading ? 'Procesando...' : 'Cargar'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export function LeadsPage() {
   const { user, currentOrganization, currentBranch, userRole, loading } = useAuth();
   const [filters, setFilters] = useState({
@@ -66,11 +196,13 @@ export function LeadsPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [activeFilters, setActiveFilters] = useState<Array<{ field: string; value: string }>>([]);
   const [selectedLeads, setSelectedLeads] = useState<Lead[]>([]);
+  const [selectAllLeads, setSelectAllLeads] = useState(false);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [selectedLeadForWA, setSelectedLeadForWA] = useState<Lead | null>(null);
   const [isMakeModalOpen, setIsMakeModalOpen] = useState(false);
   const [isFiltersOpen, setIsFiltersOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<'activos' | 'archivados'>('activos');
+  const [isCSVModalOpen, setIsCSVModalOpen] = useState(false);
 
   const {
     leads,
@@ -188,27 +320,41 @@ export function LeadsPage() {
 
   const handleStatusChange = async (leadId: string, newStatus: Lead['status']) => {
     try {
-      // Estados que convierten un lead en contacto
-      const contactStates: Lead['status'][] = ['contacted', 'followed', 'interested', 'reserved', 'liquidated', 'effective_reservation'];
+      // Mostrar un mensaje de confirmación
+      const confirm = window.confirm(
+        `¿Estás seguro de que deseas cambiar el estado a "${statusLabels[newStatus]}"?`
+      );
       
-      // Mostrar un mensaje de confirmación si es un estado que convierte a contacto
-      if (contactStates.includes(newStatus)) {
-        const confirm = window.confirm(
-          `Al cambiar el estado a "${statusLabels[newStatus]}", el lead será convertido a contacto y desaparecerá de esta lista. ¿Desea continuar?`
-        );
-        
-        if (!confirm) {
-          setIsStatusMenuOpen(null);
-          return;
-        }
+      if (!confirm) {
+        setIsStatusMenuOpen(null);
+        return;
+      }
+
+      // Buscar el lead actual
+      const lead = leads.find(l => l.id === leadId);
+      if (!lead) {
+        toast.error('Lead no encontrado');
+        setIsStatusMenuOpen(null);
+        return;
       }
       
-      await updateLeadStatus.mutateAsync({ leadId, status: newStatus });
+      // Actualizar el estado usando el hook useLeads
+      await updateLeadStatus.mutateAsync({ 
+        leadId, 
+        status: newStatus 
+      });
       
+      // Estados que convierten un lead en contacto
+      const contactStates: Lead['status'][] = ['contacted', 'followed', 'interested', 'reserved', 'liquidated', 'effective_reservation'];
+
       if (newStatus === 'archived') {
         toast.info('Lead archivado correctamente');
       } else if (contactStates.includes(newStatus)) {
-        toast.success('Lead convertido a contacto exitosamente');
+        if (lead.assigned_to) {
+          toast.success('Lead convertido a contacto exitosamente');
+        } else {
+          toast.info('Estado actualizado. Nota: El lead necesita un agente asignado para ser convertido a contacto.');
+        }
       } else {
         toast.success('Estado actualizado exitosamente');
       }
@@ -225,28 +371,48 @@ export function LeadsPage() {
       const lead = leads.find(l => l.id === leadId);
       if (!lead) return;
 
-      // Si se asigna un agente (antes estaba sin asignar)
-      if (!lead.assigned_to && newAgentId !== 'unassigned') {
-        // 1. Asignar el agente
-        await updateLeadAssignment.mutateAsync({
-          leadId,
-          agentId: newAgentId,
-        });
-        // 2. Cambiar el estado a 'assigned' si no lo está
-        if (lead.status !== 'assigned') {
-          await updateLeadStatus.mutateAsync({ leadId, status: 'assigned' });
-        }
-        // 3. Convertir a contacto si no existe ya
-        // Consultar si ya existe un contacto con este lead
+      // Si se desasigna (antes tenía agente)
+      if (lead.assigned_to && newAgentId === 'unassigned') {
+        await Promise.all([
+          // Desasignar el agente
+          updateLeadAssignment.mutateAsync({
+            leadId,
+            agentId: null,
+          }),
+          // Volver el estado a "new"
+          updateLeadStatus.mutateAsync({ 
+            leadId, 
+            status: 'new' 
+          })
+        ]);
+        toast.success('Lead desasignado y estado actualizado a Nuevo');
+      } else if (!lead.assigned_to && newAgentId !== 'unassigned') {
+        // Si se asigna un agente (antes estaba sin asignar)
+        await Promise.all([
+          // Asignar el agente
+          updateLeadAssignment.mutateAsync({
+            leadId,
+            agentId: newAgentId,
+          }),
+          // Cambiar el estado a 'assigned'
+          updateLeadStatus.mutateAsync({ 
+            leadId, 
+            status: 'assigned' 
+          })
+        ]);
+
+        // Verificar si ya existe un contacto
         const { data: existingContacts, error } = await supabase
           .from('contacts')
           .select('id')
           .eq('original_lead_id', leadId);
+
         if (error) {
           console.error('Error consultando contactos:', error);
         }
+
+        // Solo crear el contacto si no existe
         if (!existingContacts || existingContacts.length === 0) {
-          // Crear el contacto manualmente (igual que en updateLeadStatus)
           const { error: contactError } = await supabase
             .from('contacts')
             .insert([{
@@ -266,20 +432,15 @@ export function LeadsPage() {
               original_lead_status: 'assigned',
               original_lead_inquiry_number: lead.inquiry_number,
             }]);
+
           if (contactError) {
             console.error('Error creando contacto:', contactError);
           } else {
             toast.info('El lead ha sido convertido en contacto y ahora aparece en la lista de Contactos.');
           }
         }
-        toast.success('Lead asignado y convertido a contacto');
-      } else if (lead.assigned_to && newAgentId === 'unassigned') {
-        // Si se desasigna (antes tenía agente)
-        await updateLeadAssignment.mutateAsync({
-          leadId,
-          agentId: null,
-        });
-        toast.success('Lead desasignado');
+
+        toast.success('Lead asignado correctamente');
       } else if (lead.assigned_to && newAgentId !== 'unassigned') {
         // Cambio de un agente a otro
         await updateLeadAssignment.mutateAsync({
@@ -335,18 +496,110 @@ export function LeadsPage() {
 
   const handleBulkAssign = async (agentId: string) => {
     try {
-      await Promise.all(
-        selectedLeads.map(lead =>
-          updateLeadAssignment.mutateAsync({
-            leadId: lead.id,
-            agentId: agentId === 'unassigned' ? null : agentId,
-          })
-        )
-      );
+      const leadsToUpdate = selectAllLeads ? filteredLeads : selectedLeads;
+      
+      // Mostrar confirmación con el número de leads
+      const confirmMessage = `¿Estás seguro de que deseas ${
+        agentId === 'unassigned' ? 'desasignar' : 'asignar'
+      } ${leadsToUpdate.length} leads${
+        agentId === 'unassigned' ? '' : ' al agente seleccionado'
+      }?`;
+
+      if (!window.confirm(confirmMessage)) {
+        return;
+      }
+
+      // Si se está desasignando, actualizar tanto la asignación como el estado
+      if (agentId === 'unassigned') {
+        await Promise.all(
+          leadsToUpdate.flatMap(lead => [
+            // Desasignar el agente
+            updateLeadAssignment.mutateAsync({
+              leadId: lead.id,
+              agentId: null,
+            }),
+            // Volver el estado a "new"
+            updateLeadStatus.mutateAsync({
+              leadId: lead.id,
+              status: 'new'
+            })
+          ])
+        );
+      } else {
+        // Si se está asignando a un agente
+        await Promise.all(
+          leadsToUpdate.flatMap(lead => [
+            // Asignar el agente
+            updateLeadAssignment.mutateAsync({
+              leadId: lead.id,
+              agentId,
+            }),
+            // Cambiar el estado a 'assigned' si no lo está
+            lead.status !== 'assigned' && updateLeadStatus.mutateAsync({
+              leadId: lead.id,
+              status: 'assigned'
+            })
+          ].filter(Boolean))
+        );
+      }
+      
       setSelectedLeads([]);
-      toast.success('Leads asignados correctamente');
+      setSelectAllLeads(false);
+      toast.success(
+        `${leadsToUpdate.length} leads ${agentId === 'unassigned' 
+          ? 'desasignados y estado actualizado a Nuevo' 
+          : 'asignados'} correctamente`
+      );
     } catch (error) {
+      console.error('Error en asignación masiva:', error);
       toast.error('Error al asignar los leads');
+    }
+  };
+
+  // Función para procesar los leads del CSV
+  const handleCSVUpload = async (data: any[]) => {
+    try {
+      if (!currentOrganization?.id || !currentBranch?.id) {
+        toast.error('No se puede importar leads sin una organización y sucursal seleccionada');
+        return;
+      }
+
+      const processedLeads = data.map(row => ({
+        full_name: String(row.full_name || row.nombre || ''),
+        phone: String(row.phone || row.telefono || ''),
+        origin: String(row.origin || row.origen || ''),
+        pax_count: parseInt(row.pax_count || row.pax || '0'),
+        estimated_travel_date: row.estimated_travel_date || row.fecha_viaje || null,
+        organization_id: currentOrganization.id,
+        branch_id: currentBranch.id,
+        inquiry_number: generateInquiryNumber(),
+        status: 'new' as Lead['status'],
+        assigned_to: null,
+        province: String(row.province || row.provincia || ''),
+        converted_to_contact: false,
+        notes: String(row.notes || row.notas || ''),
+        email: String(row.email || ''),
+        city: String(row.city || row.ciudad || ''),
+        country: String(row.country || row.pais || ''),
+        budget: row.budget || row.presupuesto || null,
+      }));
+
+      // Validar datos requeridos
+      const invalidLeads = processedLeads.filter(lead => !lead.full_name || !lead.phone);
+      if (invalidLeads.length > 0) {
+        toast.error(`${invalidLeads.length} leads no tienen nombre o teléfono`);
+        return;
+      }
+
+      // Crear los leads
+      for (const lead of processedLeads) {
+        await createLeadMutation.mutateAsync(lead);
+      }
+
+      toast.success(`${processedLeads.length} leads importados correctamente`);
+    } catch (error) {
+      console.error('Error importing leads:', error);
+      toast.error('Error al importar los leads');
     }
   };
 
@@ -356,6 +609,24 @@ export function LeadsPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900">Leads</h1>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsCSVModalOpen(true)}
+              className="inline-flex items-center gap-x-2 bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 rounded-md"
+            >
+              <svg 
+                className="h-5 w-5" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path d="M4 16L4 17C4 18.6569 5.34315 20 7 20L17 20C18.6569 20 20 18.6569 20 17L20 16M16 12L12 16M12 16L8 12M12 16L12 4" 
+                      stroke="currentColor" 
+                      strokeWidth="2" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round"/>
+              </svg>
+              Importar CSV
+            </button>
             <button
               onClick={() => setIsMakeModalOpen(true)}
               className="inline-flex items-center gap-x-2 bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 rounded-md"
@@ -386,23 +657,36 @@ export function LeadsPage() {
           </div>
         </div>
         {/* Asignación múltiple */}
-        {selectedLeads.length > 0 && (
-          <div className="flex items-center gap-2 mb-2">
-            <Select
-              options={agents.map(agent => ({ value: agent.id, label: agent.full_name }))}
-              onChange={option => {
-                if (option && option.value) {
-                  handleBulkAssign(option.value);
-                }
-              }}
-              placeholder="Asignar a..."
-              className="w-60"
-              isSearchable
-            />
-            <span className="text-xs">{selectedLeads.length} leads seleccionados</span>
+        {(selectedLeads.length > 0 || selectAllLeads) && (
+          <div className="bg-blue-50 p-4 rounded-lg mb-4 flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Select
+                options={[
+                  { value: 'unassigned', label: 'Sin asignar' },
+                  ...agents.map(agent => ({ value: agent.id, label: agent.full_name }))
+                ]}
+                onChange={option => {
+                  if (option && option.value) {
+                    handleBulkAssign(option.value);
+                  }
+                }}
+                placeholder="Asignar a..."
+                className="w-60"
+                isSearchable
+              />
+            </div>
+            <span className="text-sm text-blue-700 font-medium">
+              {selectAllLeads 
+                ? `Todos los leads (${filteredLeads.length}) seleccionados` 
+                : `${selectedLeads.length} leads seleccionados`
+              }
+            </span>
             <button
-              className="text-xs text-gray-500 hover:text-gray-700 ml-2"
-              onClick={() => setSelectedLeads([])}
+              className="text-sm text-blue-600 hover:text-blue-800"
+              onClick={() => {
+                setSelectedLeads([]);
+                setSelectAllLeads(false);
+              }}
             >
               Limpiar selección
             </button>
@@ -638,17 +922,39 @@ export function LeadsPage() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-8">
-                  <input
-                    type="checkbox"
-                    checked={selectedLeads.length === paginatedLeads.length && paginatedLeads.length > 0}
-                    onChange={e => {
-                      if (e.target.checked) {
-                        setSelectedLeads(paginatedLeads);
-                      } else {
-                        setSelectedLeads([]);
-                      }
-                    }}
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={selectAllLeads || (selectedLeads.length === paginatedLeads.length && paginatedLeads.length > 0)}
+                      ref={checkbox => {
+                        if (checkbox) {
+                          checkbox.indeterminate = selectedLeads.length > 0 && selectedLeads.length < paginatedLeads.length && !selectAllLeads;
+                        }
+                      }}
+                      onChange={e => {
+                        if (e.target.checked) {
+                          if (selectedLeads.length === paginatedLeads.length) {
+                            // Si todos los leads de la página están seleccionados, activar selección total
+                            setSelectAllLeads(true);
+                          } else {
+                            // Seleccionar solo los leads de la página actual
+                            setSelectedLeads(paginatedLeads);
+                          }
+                        } else {
+                          setSelectAllLeads(false);
+                          setSelectedLeads([]);
+                        }
+                      }}
+                    />
+                    {selectedLeads.length > 0 && !selectAllLeads && (
+                      <button
+                        className="text-xs text-blue-600 hover:text-blue-800"
+                        onClick={() => setSelectAllLeads(true)}
+                      >
+                        Seleccionar todos los leads
+                      </button>
+                    )}
+                  </div>
                 </th>
                 <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
                 <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
@@ -685,11 +991,12 @@ export function LeadsPage() {
                     <td className="px-2 py-2 whitespace-nowrap">
                       <input
                         type="checkbox"
-                        checked={selectedLeads.some(l => l.id === lead.id)}
+                        checked={selectAllLeads || selectedLeads.some(l => l.id === lead.id)}
                         onChange={e => {
                           if (e.target.checked) {
                             setSelectedLeads([...selectedLeads, lead]);
                           } else {
+                            setSelectAllLeads(false);
                             setSelectedLeads(selectedLeads.filter(l => l.id !== lead.id));
                           }
                         }}
@@ -825,7 +1132,7 @@ export function LeadsPage() {
                             className="cursor-pointer py-1"
                           >
                             <svg className="mr-2 h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                              <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H8z" clipRule="evenodd" />
                             </svg>
                             Tareas
                           </DropdownMenuItem>
@@ -944,6 +1251,13 @@ export function LeadsPage() {
           }}
         />
       )}
+
+      {/* Nuevo modal para CSV */}
+      <CSVUploadModal
+        isOpen={isCSVModalOpen}
+        onClose={() => setIsCSVModalOpen(false)}
+        onUpload={handleCSVUpload}
+      />
     </div>
   );
 } 

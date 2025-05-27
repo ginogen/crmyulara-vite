@@ -194,53 +194,66 @@ export function useLeads(organizationId?: string, branchId?: string) {
       const contactStates: Lead['status'][] = ['contacted', 'followed', 'interested', 'reserved', 'liquidated', 'effective_reservation'];
 
       if (contactStates.includes(status)) {
-        // Crear el contacto
-        const { error: contactError } = await supabase
-          .from('contacts')
-          .insert([{
-            full_name: lead.full_name,
-            email: null, // El email será null por defecto
-            phone: lead.phone,
-            city: lead.province, // Usamos la provincia como ciudad ya que es el dato más cercano que tenemos
-            province: lead.province,
-            tag: status, // Usamos el estado como etiqueta inicial
-            organization_id: lead.organization_id,
-            branch_id: lead.branch_id,
-            assigned_to: lead.assigned_to,
-            // Campos adicionales del lead
-            origin: lead.origin,
-            pax_count: lead.pax_count,
-            estimated_travel_date: lead.estimated_travel_date,
-            original_lead_id: lead.id,
-            original_lead_status: status,
-            original_lead_inquiry_number: lead.inquiry_number,
-          }]);
+        // Solo crear contacto si el lead tiene un agente asignado
+        if (lead.assigned_to) {
+          // Crear el contacto
+          const { error: contactError } = await supabase
+            .from('contacts')
+            .insert([{
+              full_name: lead.full_name,
+              email: null, // El email será null por defecto
+              phone: lead.phone,
+              city: lead.province, // Usamos la provincia como ciudad ya que es el dato más cercano que tenemos
+              province: lead.province,
+              tag: status, // Usamos el estado como etiqueta inicial
+              organization_id: lead.organization_id,
+              branch_id: lead.branch_id,
+              assigned_to: lead.assigned_to,
+              // Campos adicionales del lead
+              origin: lead.origin,
+              pax_count: lead.pax_count,
+              estimated_travel_date: lead.estimated_travel_date,
+              original_lead_id: lead.id,
+              original_lead_status: status,
+              original_lead_inquiry_number: lead.inquiry_number,
+            }]);
 
-        if (contactError) {
-          throw contactError;
+          if (contactError) {
+            throw contactError;
+          }
+
+          // En lugar de eliminar el lead, lo marcamos como convertido
+          const { error: updateError } = await supabase
+            .from('leads')
+            .update({ 
+              status: status,
+              converted_to_contact: true, // Asegurarnos que siempre se marque como convertido
+            })
+            .eq('id', leadId);
+
+          if (updateError) {
+            throw updateError;
+          }
+
+          // Registrar en el historial
+          await supabase.from('lead_history').insert({
+            lead_id: leadId,
+            action: 'converted_to_contact',
+            description: `Lead convertido a contacto con estado ${status}`,
+          });
+
+          return;
+        } else {
+          // Si no tiene agente asignado, solo actualizar el estado
+          const { error } = await supabase
+            .from('leads')
+            .update({ status })
+            .eq('id', leadId);
+
+          if (error) {
+            throw error;
+          }
         }
-
-        // En lugar de eliminar el lead, lo marcamos como convertido
-        const { error: updateError } = await supabase
-          .from('leads')
-          .update({ 
-            status: status,
-            converted_to_contact: true, // Asegurarnos que siempre se marque como convertido
-          })
-          .eq('id', leadId);
-
-        if (updateError) {
-          throw updateError;
-        }
-
-        // Registrar en el historial
-        await supabase.from('lead_history').insert({
-          lead_id: leadId,
-          action: 'converted_to_contact',
-          description: `Lead convertido a contacto con estado ${status}`,
-        });
-
-        return;
       }
 
       // Si no es un estado que convierte a contacto, actualizar normalmente
