@@ -120,21 +120,33 @@ export function useLeads(organizationId?: string, branchId?: string) {
 
   const createLeadMutation = useMutation({
     mutationFn: async (leadData: Omit<Lead, 'id' | 'created_at'>) => {
-      // Si no hay un usuario asignado, intentar aplicar las reglas
+      // Aplicar reglas de asignación si no hay un usuario asignado
+      let finalLeadData = { ...leadData };
       if (!leadData.assigned_to) {
         const assignedUser = await applyRules(leadData as Lead);
         if (assignedUser) {
-          leadData.assigned_to = assignedUser;
+          finalLeadData.assigned_to = assignedUser;
         }
       }
 
       const { data, error } = await supabase
         .from('leads')
-        .insert([leadData])
+        .insert([finalLeadData])
         .select()
         .single();
 
       if (error) throw error;
+
+      // Registrar la creación en el historial
+      if (user?.id) {
+        await supabase.from('lead_history').insert({
+          lead_id: data.id,
+          user_id: user.id,
+          action: 'lead_created',
+          description: `Lead creado: ${data.full_name} - ${data.phone}`,
+        });
+      }
+
       return data;
     },
     onSuccess: () => {
@@ -170,6 +182,17 @@ export function useLeads(organizationId?: string, branchId?: string) {
         .single();
 
       if (error) throw error;
+
+      // Registrar la actualización en el historial
+      if (user?.id) {
+        await supabase.from('lead_history').insert({
+          lead_id: id,
+          user_id: user.id,
+          action: 'lead_updated',
+          description: `Lead actualizado: ${data.full_name}`,
+        });
+      }
+
       return data;
     },
     onSuccess: () => {
@@ -189,6 +212,18 @@ export function useLeads(organizationId?: string, branchId?: string) {
       if (leadError) {
         throw leadError;
       }
+
+      const statusLabels: Record<Lead['status'], string> = {
+        new: 'Nuevo',
+        assigned: 'Asignado',
+        contacted: 'Contactado',
+        followed: 'Seguido',
+        interested: 'Interesado',
+        reserved: 'Reservado',
+        liquidated: 'Liquidado',
+        effective_reservation: 'Reserva Efectiva',
+        archived: 'Archivado',
+      };
 
       // Estados que convierten un lead en contacto
       const contactStates: Lead['status'][] = ['contacted', 'followed', 'interested', 'reserved', 'liquidated', 'effective_reservation'];
@@ -236,11 +271,14 @@ export function useLeads(organizationId?: string, branchId?: string) {
           }
 
           // Registrar en el historial
-          await supabase.from('lead_history').insert({
-            lead_id: leadId,
-            action: 'converted_to_contact',
-            description: `Lead convertido a contacto con estado ${status}`,
-          });
+          if (user?.id) {
+            await supabase.from('lead_history').insert({
+              lead_id: leadId,
+              user_id: user.id,
+              action: 'converted_to_contact',
+              description: `Lead convertido a contacto con estado "${statusLabels[status]}"`,
+            });
+          }
 
           return;
         } else {
@@ -272,11 +310,14 @@ export function useLeads(organizationId?: string, branchId?: string) {
       }
 
       // Registrar el cambio en el historial
-      await supabase.from('lead_history').insert({
-        lead_id: leadId,
-        action: 'status_change',
-        description: `Estado cambiado a ${status}`,
-      });
+      if (user?.id) {
+        await supabase.from('lead_history').insert({
+          lead_id: leadId,
+          user_id: user.id,
+          action: 'status_change',
+          description: `Estado cambiado de "${statusLabels[lead.status as Lead['status']]}" a "${statusLabels[status]}"`,
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads', organizationId, branchId] });
@@ -286,6 +327,20 @@ export function useLeads(organizationId?: string, branchId?: string) {
 
   const updateLeadAssignment = useMutation({
     mutationFn: async ({ leadId, agentId }: { leadId: string; agentId: string | null }) => {
+      // Obtener información del agente para el historial
+      let agentName = 'Sin asignar';
+      if (agentId) {
+        const { data: agent } = await supabase
+          .from('users')
+          .select('full_name')
+          .eq('id', agentId)
+          .single();
+        
+        if (agent) {
+          agentName = agent.full_name;
+        }
+      }
+
       const { error } = await supabase
         .from('leads')
         .update({ assigned_to: agentId })
@@ -296,11 +351,14 @@ export function useLeads(organizationId?: string, branchId?: string) {
       }
 
       // Registrar el cambio en el historial
-      await supabase.from('lead_history').insert({
-        lead_id: leadId,
-        action: 'assignment_change',
-        description: agentId ? `Lead asignado` : 'Lead sin asignar',
-      });
+      if (user?.id) {
+        await supabase.from('lead_history').insert({
+          lead_id: leadId,
+          user_id: user.id,
+          action: 'assignment_change',
+          description: agentId ? `Lead asignado a ${agentName}` : 'Lead sin asignar',
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads', organizationId, branchId] });
@@ -312,11 +370,30 @@ export function useLeads(organizationId?: string, branchId?: string) {
       if (userRole !== 'super_admin') {
         throw new Error('Solo un Super Admin puede eliminar leads');
       }
+
+      // Obtener información del lead antes de eliminarlo
+      const { data: lead } = await supabase
+        .from('leads')
+        .select('full_name, phone')
+        .eq('id', id)
+        .single();
+
       const { error } = await supabase
         .from('leads')
         .delete()
         .eq('id', id);
+      
       if (error) throw error;
+
+      // Registrar la eliminación en el historial (aunque el lead ya no exista)
+      if (user?.id && lead) {
+        await supabase.from('lead_history').insert({
+          lead_id: id,
+          user_id: user.id,
+          action: 'lead_deleted',
+          description: `Lead eliminado: ${lead.full_name} - ${lead.phone}`,
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads', organizationId, branchId] });

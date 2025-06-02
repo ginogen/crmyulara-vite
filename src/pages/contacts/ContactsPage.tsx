@@ -630,9 +630,79 @@ export function ContactsPage() {
                       </td>
                       <td className="px-4 py-2 whitespace-nowrap text-gray-700 truncate text-xs">{contact.email}</td>
                       <td className="px-4 py-2 whitespace-nowrap">
-                        <span className="px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                          {contact.tag}
-                        </span>
+                        <Select
+                          options={tags.map(tag => ({ 
+                            value: tag.name, 
+                            label: tag.name,
+                            color: tag.color 
+                          }))}
+                          value={{ 
+                            value: contact.tag, 
+                            label: contact.tag,
+                            color: tags.find(t => t.name === contact.tag)?.color || 'bg-gray-100 text-gray-800'
+                          }}
+                          onChange={async (option: { value: string; label: string; color?: string } | null) => {
+                            if (option && option.value !== contact.tag) {
+                              try {
+                                await updateContact.mutateAsync({
+                                  id: contact.id,
+                                  tag: option.value
+                                });
+                              } catch (error) {
+                                console.error('Error updating contact tag:', error);
+                              }
+                            }
+                          }}
+                          className="text-xs min-w-[120px]"
+                          classNamePrefix="select"
+                          placeholder="Seleccionar etiqueta..."
+                          isSearchable={false}
+                          formatOptionLabel={(option: { value: string; label: string; color?: string }) => (
+                            <span className={`px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${option.color || 'bg-gray-100 text-gray-800'}`}>
+                              {option.label}
+                            </span>
+                          )}
+                          styles={{
+                            control: (base) => ({
+                              ...base,
+                              minHeight: '24px',
+                              height: '24px',
+                              fontSize: '12px',
+                              border: 'none',
+                              boxShadow: 'none',
+                              backgroundColor: 'transparent',
+                            }),
+                            valueContainer: (base) => ({
+                              ...base,
+                              height: '24px',
+                              padding: '0',
+                            }),
+                            input: (base) => ({
+                              ...base,
+                              margin: '0',
+                              padding: '0',
+                            }),
+                            indicatorSeparator: () => ({
+                              display: 'none',
+                            }),
+                            indicatorsContainer: (base) => ({
+                              ...base,
+                              height: '24px',
+                            }),
+                            dropdownIndicator: (base) => ({
+                              ...base,
+                              padding: '0 4px',
+                            }),
+                            menu: (base) => ({
+                              ...base,
+                              fontSize: '12px',
+                            }),
+                            option: (base) => ({
+                              ...base,
+                              padding: '4px 8px',
+                            }),
+                          }}
+                        />
                       </td>
                       <td className="px-4 py-2 whitespace-nowrap text-gray-700 text-xs">{formatDate(contact.created_at)}</td>
                       <td className="px-4 py-2 whitespace-nowrap text-right">

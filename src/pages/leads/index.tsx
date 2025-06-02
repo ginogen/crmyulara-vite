@@ -957,10 +957,11 @@ export function LeadsPage() {
                   </div>
                 </th>
                 <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
+                <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Creado</th>
                 <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
                 <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Teléfono</th>
                 <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Origen</th>
-                <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha de Viaje</th>
+                <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Fecha de Viaje</th>
                 <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pax</th>
                 <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asignado A</th>
                 <th scope="col" className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-16">Acciones</th>
@@ -969,7 +970,7 @@ export function LeadsPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan={9} className="text-center py-4">
+                  <td colSpan={10} className="text-center py-4">
                     <div className="flex justify-center items-center space-x-2">
                       <svg className="animate-spin h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -981,7 +982,7 @@ export function LeadsPage() {
                 </tr>
               ) : filteredLeads.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="text-center py-4 text-xs text-gray-500">
+                  <td colSpan={10} className="text-center py-4 text-xs text-gray-500">
                     No hay leads disponibles
                   </td>
                 </tr>
@@ -1003,6 +1004,7 @@ export function LeadsPage() {
                       />
                     </td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-900">{lead.full_name}</td>
+                    <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-900">{formatDate(lead.created_at)}</td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs">
                       <DropdownMenu open={isStatusMenuOpen === lead.id} onOpenChange={(open) => setIsStatusMenuOpen(open ? lead.id : null)}>
                         <DropdownMenuTrigger asChild>
@@ -1062,7 +1064,11 @@ export function LeadsPage() {
                         {lead.origin}
                       </div>
                     </td>
-                    <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-900">{formatDate(lead.estimated_travel_date)}</td>
+                    <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-900">
+                      <div className="max-w-[80px] truncate" title={formatDate(lead.estimated_travel_date)}>
+                        {formatDate(lead.estimated_travel_date)}
+                      </div>
+                    </td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-900">{lead.pax_count}</td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs">
                       <DropdownMenu>

@@ -35,7 +35,7 @@ export function LeadTasksModal({ isOpen, onClose, leadId }: LeadTasksModalProps)
     description: '',
     due_date: '',
   });
-  const { user } = useAuth();
+  const { user, currentOrganization, currentBranch } = useAuth();
   const supabase = createClient();
 
   useEffect(() => {
@@ -77,8 +77,8 @@ export function LeadTasksModal({ isOpen, onClose, leadId }: LeadTasksModalProps)
       return;
     }
 
-    if (!user?.id) {
-      console.error('Usuario no autenticado');
+    if (!user?.id || !currentOrganization?.id || !currentBranch?.id) {
+      console.error('Usuario no autenticado o faltan datos de organización');
       return;
     }
     
@@ -92,9 +92,8 @@ export function LeadTasksModal({ isOpen, onClose, leadId }: LeadTasksModalProps)
         related_to_type: 'lead',
         related_to_id: leadId,
         assigned_to: user.id,
-        // Estos campos deberían venir del contexto de la organización
-        organization_id: 'a244fe04-86e1-4f3a-8ab6-0d0540cbf4e3', // Temporal, debería venir del contexto
-        branch_id: 'ed3fa90f-1e1c-46fa-9a82-84f6f33fca5b', // Temporal, debería venir del contexto
+        organization_id: currentOrganization.id,
+        branch_id: currentBranch.id,
       };
 
       const { data, error } = await supabase
@@ -122,6 +121,14 @@ export function LeadTasksModal({ isOpen, onClose, leadId }: LeadTasksModalProps)
         description: '',
         due_date: '',
       });
+
+      // Registrar en el historial del lead
+      await supabase.from('lead_history').insert({
+        lead_id: leadId,
+        user_id: user.id,
+        action: 'task_created',
+        description: `Nueva tarea creada: "${newTask.title}"`,
+      });
     } catch (error) {
       console.error('Error al agregar tarea:', error);
       // Aquí podrías agregar una notificación de error al usuario
@@ -133,8 +140,11 @@ export function LeadTasksModal({ isOpen, onClose, leadId }: LeadTasksModalProps)
     const completedAt = newStatus === 'completed' ? new Date().toISOString() : null;
     
     try {
+      // Obtener información de la tarea para el historial
+      const task = tasks.find(t => t.id === taskId);
+      
       const { error } = await supabase
-        .from('lead_tasks')
+        .from('tasks')
         .update({ 
           status: newStatus,
           completed_at: completedAt
@@ -150,6 +160,16 @@ export function LeadTasksModal({ isOpen, onClose, leadId }: LeadTasksModalProps)
             : task
         )
       );
+
+      // Registrar en el historial del lead
+      if (user?.id && task) {
+        await supabase.from('lead_history').insert({
+          lead_id: leadId,
+          user_id: user.id,
+          action: 'task_status_changed',
+          description: `Tarea "${task.title}" marcada como ${newStatus === 'completed' ? 'completada' : 'pendiente'}`,
+        });
+      }
     } catch (error) {
       console.error('Error updating task status:', error);
     }
@@ -157,14 +177,27 @@ export function LeadTasksModal({ isOpen, onClose, leadId }: LeadTasksModalProps)
 
   const handleDeleteTask = async (taskId: string) => {
     try {
+      // Obtener información de la tarea antes de eliminarla
+      const task = tasks.find(t => t.id === taskId);
+      
       const { error } = await supabase
-        .from('lead_tasks')
+        .from('tasks')
         .delete()
         .eq('id', taskId);
       
       if (error) throw error;
       
       setTasks((prev) => prev.filter((task) => task.id !== taskId));
+
+      // Registrar en el historial del lead
+      if (user?.id && task) {
+        await supabase.from('lead_history').insert({
+          lead_id: leadId,
+          user_id: user.id,
+          action: 'task_deleted',
+          description: `Tarea eliminada: "${task.title}"`,
+        });
+      }
     } catch (error) {
       console.error('Error deleting task:', error);
     }
