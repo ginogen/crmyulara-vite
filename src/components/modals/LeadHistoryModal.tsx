@@ -34,6 +34,7 @@ const actionLabels: Record<string, string> = {
   task_status_changed: 'Estado de Tarea Cambiado',
   task_deleted: 'Tarea Eliminada',
   lead_deleted: 'Lead Eliminado',
+  lead_archived: 'Lead Archivado',
 };
 
 // Colores para diferentes tipos de acciones
@@ -47,6 +48,7 @@ const actionColors: Record<string, string> = {
   task_status_changed: 'bg-cyan-100 text-cyan-800',
   task_deleted: 'bg-red-100 text-red-800',
   lead_deleted: 'bg-gray-100 text-gray-800',
+  lead_archived: 'bg-orange-100 text-orange-800',
 };
 
 export function LeadHistoryModal({ isOpen, onClose, leadId }: LeadHistoryModalProps) {

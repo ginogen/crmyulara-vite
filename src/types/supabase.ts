@@ -120,6 +120,8 @@ export type Lead = {
   organization_id: string;
   branch_id: string;
   converted_to_contact: boolean | null;
+  archived_reason: string | null;
+  archived_at: string | null;
 };
 
 export type Task = {

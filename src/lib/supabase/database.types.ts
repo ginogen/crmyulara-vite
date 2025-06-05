@@ -133,6 +133,8 @@ export interface Database {
           branch_id: string
           created_at: string
           converted_to_contact: boolean | null
+          archived_reason: string | null
+          archived_at: string | null
         }
         Insert: {
           id?: string
@@ -150,6 +152,8 @@ export interface Database {
           branch_id: string
           created_at?: string
           converted_to_contact?: boolean | null
+          archived_reason?: string | null
+          archived_at?: string | null
         }
         Update: {
           id?: string
@@ -167,6 +171,8 @@ export interface Database {
           branch_id?: string
           created_at?: string
           converted_to_contact?: boolean | null
+          archived_reason?: string | null
+          archived_at?: string | null
         }
       }
       tasks: {

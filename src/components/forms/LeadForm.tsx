@@ -12,6 +12,7 @@ export function LeadForm({ initialData, onSubmit }: LeadFormProps) {
   const [formData, setFormData] = useState<Omit<Lead, 'id' | 'created_at'>>({
     inquiry_number: initialData?.inquiry_number || '',
     full_name: initialData?.full_name || '',
+    email: initialData?.email || null,
     status: initialData?.status || 'new',
     assigned_to: initialData?.assigned_to || null,
     origin: initialData?.origin || '',
@@ -22,6 +23,8 @@ export function LeadForm({ initialData, onSubmit }: LeadFormProps) {
     organization_id: initialData?.organization_id || '',
     branch_id: initialData?.branch_id || '',
     converted_to_contact: initialData?.converted_to_contact || null,
+    archived_reason: initialData?.archived_reason || null,
+    archived_at: initialData?.archived_at || null,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -58,6 +61,20 @@ export function LeadForm({ initialData, onSubmit }: LeadFormProps) {
           }
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
           required
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700">
+          Email (opcional)
+        </label>
+        <input
+          type="email"
+          value={formData.email || ''}
+          onChange={(e) =>
+            setFormData({ ...formData, email: e.target.value || null })
+          }
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
         />
       </div>
 

@@ -89,8 +89,13 @@ export function useLeads(organizationId?: string, branchId?: string) {
         } else if (userRole === 'org_admin') {
           // Org admin solo puede ver leads de su organización
           query = query.eq('organization_id', organizationId);
+        } else if (userRole === 'branch_manager') {
+          // Branch manager puede ver todos los leads de su sucursal
+          query = query
+            .eq('organization_id', organizationId)
+            .eq('branch_id', branchId);
         } else {
-          // branch_manager y sales_agent solo pueden ver leads asignados a ellos
+          // sales_agent solo puede ver leads asignados a ellos
           query = query
             .eq('organization_id', organizationId)
             .eq('branch_id', branchId)

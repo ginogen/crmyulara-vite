@@ -63,8 +63,13 @@ export default function DashboardPage() {
         } else if (userRole === 'org_admin') {
           // Org admin solo puede ver leads de su organización
           baseQuery = baseQuery.eq('organization_id', currentOrganization.id);
+        } else if (userRole === 'branch_manager') {
+          // Branch manager puede ver todos los leads de su sucursal
+          baseQuery = baseQuery
+            .eq('organization_id', currentOrganization.id)
+            .eq('branch_id', currentBranch.id);
         } else {
-          // branch_manager y sales_agent solo pueden ver leads asignados a ellos
+          // sales_agent solo puede ver leads asignados a ellos
           baseQuery = baseQuery
             .eq('organization_id', currentOrganization.id)
             .eq('branch_id', currentBranch.id)

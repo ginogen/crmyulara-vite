@@ -173,6 +173,87 @@ const CSVUploadModal: React.FC<CSVModalProps> = ({ isOpen, onClose, onUpload }) 
   );
 };
 
+// Agregar el componente Modal para archivar leads
+interface ArchiveLeadModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (reason?: string) => void;
+  leadName: string;
+}
+
+const ArchiveLeadModal: React.FC<ArchiveLeadModalProps> = ({ isOpen, onClose, onConfirm, leadName }) => {
+  const [reason, setReason] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    try {
+      await onConfirm(reason.trim() || undefined);
+      setReason('');
+      onClose();
+    } catch (error) {
+      console.error('Error archivando lead:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleClose = () => {
+    setReason('');
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-[500px] max-h-[90vh] overflow-y-auto">
+        <h2 className="text-lg font-semibold mb-4">Archivar Lead</h2>
+        
+        <div className="mb-4">
+          <p className="text-sm text-gray-600 mb-4">
+            ¿Estás seguro de que deseas archivar el lead de <strong>{leadName}</strong>?
+          </p>
+          
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Razón para archivar (opcional)
+            </label>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Escribe el motivo por el cual se está archivando este lead..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              rows={4}
+              maxLength={500}
+            />
+            <div className="text-xs text-gray-500 text-right">
+              {reason.length}/500 caracteres
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            onClick={handleClose}
+            disabled={isSubmitting}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="bg-red-600 hover:bg-red-500 text-white"
+          >
+            {isSubmitting ? 'Archivando...' : 'Archivar Lead'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export function LeadsPage() {
   const { user, currentOrganization, currentBranch, userRole, loading } = useAuth();
   const [filters, setFilters] = useState({
@@ -204,6 +285,10 @@ export function LeadsPage() {
   const [isFiltersOpen, setIsFiltersOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<'activos' | 'archivados'>('activos');
   const [isCSVModalOpen, setIsCSVModalOpen] = useState(false);
+  
+  // Agregar estados para el modal de archivado
+  const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
+  const [leadToArchive, setLeadToArchive] = useState<{ id: string; name: string } | null>(null);
 
   const {
     leads,
@@ -321,7 +406,22 @@ export function LeadsPage() {
 
   const handleStatusChange = async (leadId: string, newStatus: Lead['status']) => {
     try {
-      // Mostrar un mensaje de confirmación
+      // Si el nuevo estado es "archived", mostrar el modal de archivado
+      if (newStatus === 'archived') {
+        const lead = leads.find(l => l.id === leadId);
+        if (!lead) {
+          toast.error('Lead no encontrado');
+          setIsStatusMenuOpen(null);
+          return;
+        }
+        
+        setLeadToArchive({ id: leadId, name: lead.full_name });
+        setIsArchiveModalOpen(true);
+        setIsStatusMenuOpen(null);
+        return;
+      }
+
+      // Para otros estados, mostrar confirmación normal
       const confirm = window.confirm(
         `¿Estás seguro de que deseas cambiar el estado a "${statusLabels[newStatus]}"?`
       );
@@ -348,9 +448,7 @@ export function LeadsPage() {
       // Estados que convierten un lead en contacto
       const contactStates: Lead['status'][] = ['contacted', 'followed', 'interested', 'reserved', 'liquidated', 'effective_reservation'];
 
-      if (newStatus === 'archived') {
-        toast.info('Lead archivado correctamente');
-      } else if (contactStates.includes(newStatus)) {
+      if (contactStates.includes(newStatus)) {
         if (lead.assigned_to) {
           toast.success('Lead convertido a contacto exitosamente');
         } else {
@@ -364,6 +462,57 @@ export function LeadsPage() {
       toast.error('Error al actualizar el estado del lead');
     }
     setIsStatusMenuOpen(null);
+  };
+
+  // Nueva función para manejar el archivado con comentario
+  const handleArchiveLead = async (reason?: string) => {
+    if (!leadToArchive) return;
+
+    try {
+      // Actualizar el lead con estado archived y la razón
+      const { error } = await supabase
+        .from('leads')
+        .update({
+          status: 'archived',
+          archived_reason: reason || null,
+          archived_at: new Date().toISOString(),
+        })
+        .eq('id', leadToArchive.id);
+
+      if (error) throw error;
+
+      // Crear entrada en el historial si existe la tabla lead_history
+      try {
+        const historyDescription = reason 
+          ? `Lead archivado. Motivo: ${reason}`
+          : 'Lead archivado sin motivo específico';
+          
+        await supabase
+          .from('lead_history')
+          .insert([{
+            lead_id: leadToArchive.id,
+            action: 'lead_archived',
+            description: historyDescription,
+            user_id: user?.id,
+          }]);
+      } catch (historyError) {
+        // Si la tabla lead_history no existe, solo loggeamos el error sin fallar la operación
+        console.log('Tabla lead_history no existe o error al crear entrada:', historyError);
+      }
+
+      // Actualizar el estado local usando el hook
+      await updateLeadStatus.mutateAsync({ 
+        leadId: leadToArchive.id, 
+        status: 'archived' 
+      });
+
+      toast.success('Lead archivado correctamente');
+      setLeadToArchive(null);
+    } catch (error) {
+      console.error('Error archiving lead:', error);
+      toast.error('Error al archivar el lead');
+      throw error;
+    }
   };
 
   const handleAssignmentChange = async (leadId: string, newAgentId: string) => {
@@ -579,11 +728,9 @@ export function LeadsPage() {
         assigned_to: null,
         province: String(row.province || row.provincia || ''),
         converted_to_contact: false,
-        notes: String(row.notes || row.notas || ''),
         email: String(row.email || ''),
-        city: String(row.city || row.ciudad || ''),
-        country: String(row.country || row.pais || ''),
-        budget: row.budget || row.presupuesto || null,
+        archived_reason: null,
+        archived_at: null,
       }));
 
       // Validar datos requeridos
@@ -1025,6 +1172,20 @@ export function LeadsPage() {
                       <div className="max-w-[150px] truncate" title={lead.email || ''}>
                         {lead.email || 'Sin email'}
                       </div>
+                      {/* Mostrar indicador de archivado si está archivado y tiene motivo */}
+                      {lead.status === 'archived' && lead.archived_reason && (
+                        <div className="mt-1">
+                          <span 
+                            className="inline-flex items-center text-xs text-orange-600 cursor-help"
+                            title={`Archivado: ${lead.archived_reason}`}
+                          >
+                            <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                            </svg>
+                            Con motivo
+                          </span>
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-900">{formatDate(lead.created_at)}</td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs">
@@ -1286,6 +1447,19 @@ export function LeadsPage() {
         onClose={() => setIsCSVModalOpen(false)}
         onUpload={handleCSVUpload}
       />
+
+      {/* Nuevo Modal para archivar leads */}
+      {leadToArchive && (
+        <ArchiveLeadModal
+          isOpen={isArchiveModalOpen}
+          onClose={() => {
+            setIsArchiveModalOpen(false);
+            setLeadToArchive(null);
+          }}
+          onConfirm={handleArchiveLead}
+          leadName={leadToArchive.name}
+        />
+      )}
     </div>
   );
 } 
