@@ -180,6 +180,7 @@ export function LeadsPage() {
     assignedTo: '',
     search: '',
     name: '',
+    email: '',
     phone: '',
     origin: '',
     pax: '',
@@ -463,6 +464,7 @@ export function LeadsPage() {
       (filters.status === 'all' || !filters.status ? true : lead.status === filters.status) &&
       (filters.assignedTo === 'all' || !filters.assignedTo ? true : lead.assigned_to === filters.assignedTo) &&
       (filters.name ? lead.full_name.toLowerCase().includes(filters.name.toLowerCase()) : true) &&
+      (filters.email ? (lead.email || '').toLowerCase().includes(filters.email.toLowerCase()) : true) &&
       (filters.phone ? formatPhoneNumber(lead.phone).includes(filters.phone) : true) &&
       (filters.origin ? lead.origin.toLowerCase().includes(filters.origin.toLowerCase()) : true) &&
       (filters.pax ? lead.pax_count.toString().includes(filters.pax) : true) &&
@@ -712,7 +714,7 @@ export function LeadsPage() {
               {activeFilters.length > 0 && (
                 <button
                   onClick={() => {
-                    setFilters({ status: '', assignedTo: '', search: '', name: '', phone: '', origin: '', pax: '' });
+                    setFilters({ status: '', assignedTo: '', search: '', name: '', email: '', phone: '', origin: '', pax: '' });
                     setActiveFilters([]);
                   }}
                   className="text-xs text-gray-500 hover:text-gray-700"
@@ -733,7 +735,8 @@ export function LeadsPage() {
                         <span key={index} className="text-xs text-gray-600">
                           {filter.field === 'status' ? 'Estado' :
                            filter.field === 'assignedTo' ? 'Asignado a' :
-                           filter.field === 'search' ? 'Búsqueda' : filter.field}: {filter.value}
+                           filter.field === 'search' ? 'Búsqueda' :
+                           filter.field === 'email' ? 'Email' : filter.field}: {filter.value}
                         </span>
                       ))}
                     </div>
@@ -755,7 +758,8 @@ export function LeadsPage() {
                     <span className="text-blue-700">
                       {filter.field === 'status' ? 'Estado' :
                        filter.field === 'assignedTo' ? 'Asignado a' :
-                       filter.field === 'search' ? 'Búsqueda' : filter.field}: {filter.value}
+                       filter.field === 'search' ? 'Búsqueda' :
+                       filter.field === 'email' ? 'Email' : filter.field}: {filter.value}
                     </span>
                     <button
                       onClick={() => removeFilter(filter.field)}
@@ -779,6 +783,18 @@ export function LeadsPage() {
                   placeholder="Buscar por nombre..."
                   value={filters.name || ''}
                   onChange={(e) => handleFilterChange('name', e.target.value)}
+                  className="text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-gray-700">
+                  Email
+                </label>
+                <Input
+                  placeholder="Buscar por email..."
+                  value={filters.email || ''}
+                  onChange={(e) => handleFilterChange('email', e.target.value)}
                   className="text-xs"
                 />
               </div>
@@ -957,6 +973,7 @@ export function LeadsPage() {
                   </div>
                 </th>
                 <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
+                <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                 <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Creado</th>
                 <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
                 <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Teléfono</th>
@@ -970,7 +987,7 @@ export function LeadsPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan={10} className="text-center py-4">
+                  <td colSpan={11} className="text-center py-4">
                     <div className="flex justify-center items-center space-x-2">
                       <svg className="animate-spin h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -982,7 +999,7 @@ export function LeadsPage() {
                 </tr>
               ) : filteredLeads.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="text-center py-4 text-xs text-gray-500">
+                  <td colSpan={11} className="text-center py-4 text-xs text-gray-500">
                     No hay leads disponibles
                   </td>
                 </tr>
@@ -1004,6 +1021,11 @@ export function LeadsPage() {
                       />
                     </td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-900">{lead.full_name}</td>
+                    <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-900">
+                      <div className="max-w-[150px] truncate" title={lead.email || ''}>
+                        {lead.email || 'Sin email'}
+                      </div>
+                    </td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-900">{formatDate(lead.created_at)}</td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs">
                       <DropdownMenu open={isStatusMenuOpen === lead.id} onOpenChange={(open) => setIsStatusMenuOpen(open ? lead.id : null)}>

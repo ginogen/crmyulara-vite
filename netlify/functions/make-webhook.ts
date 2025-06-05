@@ -116,6 +116,7 @@ export const handler: Handler = async (event) => {
         
         // Extraer datos
         const fullName = extractField(leadData, 'full_name', 'name') || 'Sin nombre';
+        const email = extractField(leadData, 'email') || null;
         const phone = extractField(leadData, 'phone_number', 'phone') || '';
         const province = extractField(leadData, 'province', 'city', 'location') || '';
         
@@ -137,7 +138,8 @@ export const handler: Handler = async (event) => {
         
         const travelDate = extractField(leadData, 'estimated_travel_date', 'travel_date', 'date') || 'No especificada';
         const origin = extractField(leadData, 'origin') || 'Facebook Ads';
-        const assignedToUserId = '3c6d7374-8403-4bca-bb84-c937c4b5b94f';
+        // Respetar el assigned_to que viene en los datos, o null si no viene
+        const assignedToUserId = data.assigned_to || null;
 
         // Insertar el nuevo lead
         const { data: newLead, error: leadError } = await supabase
@@ -145,6 +147,7 @@ export const handler: Handler = async (event) => {
           .insert([{
             inquiry_number: inquiryNumber,
             full_name: fullName,
+            email: email,
             status: 'new',
             assigned_to: assignedToUserId,
             origin: origin,

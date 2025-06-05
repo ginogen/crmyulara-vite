@@ -121,6 +121,7 @@ export interface Database {
           id: string
           inquiry_number: string
           full_name: string
+          email: string | null
           status: 'new' | 'assigned' | 'contacted' | 'followed' | 'interested' | 'reserved' | 'liquidated' | 'effective_reservation' | 'archived'
           assigned_to: string | null
           origin: string
@@ -137,6 +138,7 @@ export interface Database {
           id?: string
           inquiry_number: string
           full_name: string
+          email?: string | null
           status: 'new' | 'assigned' | 'contacted' | 'followed' | 'interested' | 'reserved' | 'liquidated' | 'effective_reservation' | 'archived'
           assigned_to?: string | null
           origin: string
@@ -153,6 +155,7 @@ export interface Database {
           id?: string
           inquiry_number?: string
           full_name?: string
+          email?: string | null
           status?: 'new' | 'assigned' | 'contacted' | 'followed' | 'interested' | 'reserved' | 'liquidated' | 'effective_reservation' | 'archived'
           assigned_to?: string | null
           origin?: string
