@@ -7,11 +7,17 @@
 
 [functions]
   directory = "netlify/functions"
+  node_bundler = "esbuild"
 
 # Variables de entorno para las funciones
 [template.environment]
   SUPABASE_URL = "URL de tu proyecto Supabase"
   SUPABASE_SERVICE_ROLE_KEY = "Service Role Key de Supabase"
+  MAKE_WEBHOOK_SECRET = "Secreto del webhook de Make"
+
+# Configuración específica para funciones
+[functions."make-webhook"]
+  included_files = ["src/lib/utils/strings.ts"]
 
 # Configuración para SPA
 [[redirects]]
@@ -24,4 +30,11 @@
   for = "/*"
   [headers.values]
     X-Frame-Options = "DENY"
-    X-XSS-Protection = "1; mode=block" 
+    X-XSS-Protection = "1; mode=block"
+
+# Configuración específica para el webhook
+[[redirects]]
+  from = "/.netlify/functions/make-webhook"
+  to = "/.netlify/functions/make-webhook"
+  status = 200
+  force = true 

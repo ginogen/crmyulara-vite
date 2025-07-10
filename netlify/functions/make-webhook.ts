@@ -4,11 +4,20 @@ import { generateInquiryNumber } from '../../src/lib/utils/strings';
 
 // Función para crear el cliente Supabase admin
 const createAdminClient = () => {
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
+  // Intentar múltiples nombres de variables de entorno para compatibilidad
+  const supabaseUrl = process.env.SUPABASE_URL || 
+                     process.env.VITE_SUPABASE_URL || 
+                     process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
   
+  console.log('Configuración Supabase:', {
+    hasUrl: !!supabaseUrl,
+    hasServiceKey: !!supabaseServiceKey,
+    urlLength: supabaseUrl?.length || 0
+  });
+  
   if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Supabase URL or service key is missing');
+    throw new Error(`Supabase configuration missing. URL: ${!!supabaseUrl}, ServiceKey: ${!!supabaseServiceKey}`);
   }
 
   return createClient(supabaseUrl, supabaseServiceKey);
@@ -18,6 +27,7 @@ const createAdminClient = () => {
 function extractField(data: any, ...possibleFieldNames: string[]): string | undefined {
   if (!data) return undefined;
   
+  // Si es un objeto con field_data (formato Facebook)
   if (Array.isArray(data.field_data)) {
     for (const field of data.field_data) {
       if (possibleFieldNames.includes(field.name)) {
@@ -26,21 +36,23 @@ function extractField(data: any, ...possibleFieldNames: string[]): string | unde
     }
   }
   
+  // Si Make envía los datos ya procesados
   for (const fieldName of possibleFieldNames) {
     if (data[fieldName] !== undefined) {
-      return String(data[fieldName]);
+      return String(data[fieldName]); // Convertir a string para asegurar compatibilidad
     }
-  }
-  
-  const lastItem = possibleFieldNames[possibleFieldNames.length - 1];
-  if (lastItem && !lastItem.includes('_') && !lastItem.match(/^[a-z]+$/)) {
-    return lastItem;
   }
   
   return undefined;
 }
 
 export const handler: Handler = async (event) => {
+  console.log('Webhook recibido:', {
+    method: event.httpMethod,
+    headers: Object.keys(event.headers),
+    bodyLength: event.body?.length || 0
+  });
+
   // Agregar headers CORS
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -62,7 +74,17 @@ export const handler: Handler = async (event) => {
     const authHeader = event.headers['x-webhook-secret'];
     const WEBHOOK_SECRET = process.env.MAKE_WEBHOOK_SECRET;
     
+    console.log('Verificación de autenticación:', {
+      hasAuthHeader: !!authHeader,
+      hasWebhookSecret: !!WEBHOOK_SECRET,
+      authHeaderLength: authHeader?.length || 0
+    });
+    
     if (!authHeader || authHeader !== WEBHOOK_SECRET) {
+      console.error('Error de autenticación:', {
+        provided: authHeader,
+        expected: WEBHOOK_SECRET?.substring(0, 10) + '...'
+      });
       return {
         statusCode: 401,
         headers,
@@ -71,21 +93,53 @@ export const handler: Handler = async (event) => {
     }
 
     // Obtener el cuerpo de la petición
-    const data = JSON.parse(event.body || '{}');
+    let data;
+    try {
+      data = JSON.parse(event.body || '{}');
+      console.log('Datos recibidos:', {
+        organization_id: data.organization_id,
+        branch_id: data.branch_id,
+        form_id: data.form_id,
+        auto_convert: data.auto_convert,
+        lead_data_keys: Object.keys(data.lead_data || {})
+      });
+    } catch (parseError) {
+      console.error('Error parseando JSON:', parseError);
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid JSON' })
+      };
+    }
     
     // Usar el cliente admin
     const supabase = createAdminClient();
 
     // Validar campos requeridos
     if (!data.organization_id || !data.branch_id || !data.form_id || !data.lead_data) {
+      console.error('Campos requeridos faltantes:', {
+        has_org_id: !!data.organization_id,
+        has_branch_id: !!data.branch_id,
+        has_form_id: !!data.form_id,
+        has_lead_data: !!data.lead_data
+      });
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Missing required fields' })
+        body: JSON.stringify({ 
+          error: 'Missing required fields',
+          missing: {
+            organization_id: !data.organization_id,
+            branch_id: !data.branch_id,
+            form_id: !data.form_id,
+            lead_data: !data.lead_data
+          }
+        })
       };
     }
 
     // Guardar el lead de Facebook
+    console.log('Guardando lead de Facebook...');
     const { error: saveError } = await supabase
       .from('facebook_leads')
       .insert([{
@@ -104,15 +158,23 @@ export const handler: Handler = async (event) => {
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'Error guardando lead' })
+        body: JSON.stringify({ 
+          error: 'Error guardando lead',
+          details: saveError
+        })
       };
     }
 
+    console.log('Lead de Facebook guardado exitosamente');
+
     // Conversión automática si está habilitada
     if (data.auto_convert === true) {
+      console.log('Iniciando conversión automática...');
       try {
         const inquiryNumber = generateInquiryNumber();
         const leadData = data.lead_data;
+        
+        console.log('Procesando datos del lead:', leadData);
         
         // Extraer datos
         const fullName = extractField(leadData, 'full_name', 'name') || 'Sin nombre';
@@ -138,8 +200,19 @@ export const handler: Handler = async (event) => {
         
         const travelDate = extractField(leadData, 'estimated_travel_date', 'travel_date', 'date') || 'No especificada';
         const origin = extractField(leadData, 'origin') || 'Facebook Ads';
-        // Respetar el assigned_to que viene en los datos, o null si no viene
         const assignedToUserId = data.assigned_to || null;
+
+        console.log('Datos procesados para el lead:', {
+          fullName,
+          email,
+          phone, 
+          province,
+          paxCount,
+          travelDate,
+          origin,
+          organization_id: data.organization_id,
+          branch_id: data.branch_id
+        });
 
         // Insertar el nuevo lead
         const { data: newLead, error: leadError } = await supabase
@@ -162,15 +235,27 @@ export const handler: Handler = async (event) => {
           .single();
 
         if (leadError) {
+          console.error('Error creando lead:', leadError);
           return {
             statusCode: 500,
             headers,
             body: JSON.stringify({ 
-              error: 'Error creando lead',
-              details: leadError
+              error: 'Error creando lead', 
+              details: leadError, 
+              processed_data: {
+                fullName,
+                email,
+                phone, 
+                province,
+                paxCount,
+                travelDate,
+                origin
+              }
             })
           };
         }
+
+        console.log('Lead creado exitosamente:', newLead.id);
 
         // Actualizar facebook_leads
         await supabase
@@ -182,6 +267,8 @@ export const handler: Handler = async (event) => {
             conversion_date: new Date().toISOString()
           })
           .eq('facebook_lead_id', data.facebook_lead_id);
+
+        console.log('Lead de Facebook actualizado como procesado');
 
         return {
           statusCode: 200,
@@ -205,6 +292,7 @@ export const handler: Handler = async (event) => {
       }
     }
 
+    console.log('Webhook procesado exitosamente sin conversión automática');
     return {
       statusCode: 200,
       headers,
@@ -219,7 +307,10 @@ export const handler: Handler = async (event) => {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'Internal server error' })
+      body: JSON.stringify({ 
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : String(error)
+      })
     };
   }
 };
