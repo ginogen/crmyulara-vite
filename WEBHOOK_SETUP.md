@@ -39,6 +39,35 @@ cd crmyulara-vite
 node test-webhook.js
 ```
 
+## Función de Reintento Automático
+
+El webhook ahora incluye una función de reintento robusta que maneja automáticamente:
+
+### ✅ Errores que se reintentan automáticamente:
+
+- **Errores de red temporales** (timeout, ECONNRESET, ENOTFOUND)
+- **Errores de Supabase temporales** (503, 502, 504, PGRST301, PGRST302)
+- **Errores de JWT/token** que pueden resolverse con reintento
+- **Errores de autenticación temporales** (401)
+
+### 🔄 Configuración de reintentos:
+
+- **Máximo de intentos**: 3 por operación
+- **Delay base**: 1 segundo
+- **Backoff exponencial**: El delay se duplica en cada intento
+- **Jitter aleatorio**: Se agrega hasta 1 segundo de variación
+
+### 📊 Logging detallado:
+
+Cada reintento incluye logs detallados:
+```
+Guardar lead de Facebook: Intento 1/3
+Guardar lead de Facebook: Error en intento 1: timeout
+Guardar lead de Facebook: Esperando 1500ms antes del siguiente intento
+Guardar lead de Facebook: Intento 2/3
+Guardar lead de Facebook: Éxito en intento 2
+```
+
 ## Solución de Problemas
 
 ### Error 500 - Variables de Entorno
@@ -57,6 +86,14 @@ Si ves errores 500, verifica:
    - Configuración de Supabase
    - Datos recibidos
    - Errores específicos
+   - **Reintentos automáticos**
+
+### Errores que NO se reintentan:
+
+- **Errores de validación** (400) - datos incorrectos
+- **Errores de autenticación** (401) - secreto incorrecto
+- **Errores de permisos** (403) - falta de permisos
+- **Errores de datos** (422) - datos malformados
 
 ### Plan de Pago en Netlify
 
@@ -128,6 +165,47 @@ x-webhook-secret: tu-secreto-del-webhook
 ```json
 {
   "error": "Descripción del error",
-  "details": "Detalles adicionales"
+  "details": "Detalles adicionales",
+  "retryable": true/false
 }
+```
+
+## Operaciones con Reintento
+
+El webhook aplica reintentos automáticos a estas operaciones:
+
+1. **Guardar lead de Facebook** - 3 intentos
+2. **Crear lead** - 3 intentos  
+3. **Actualizar lead de Facebook** - 3 intentos
+
+### Ejemplo de respuesta con reintentos:
+
+```json
+{
+  "success": true,
+  "message": "Lead guardado y convertido exitosamente",
+  "lead_id": "uuid-del-lead",
+  "retries_used": 2
+}
+```
+
+## Monitoreo de Reintentos
+
+Para monitorear los reintentos:
+
+1. **Revisar logs en Netlify** - Functions > make-webhook
+2. **Usar el script de prueba** - `node test-webhook.js`
+3. **Verificar métricas** - Los reintentos se registran en los logs
+
+### Logs de ejemplo:
+
+```
+Webhook recibido: { method: 'POST', bodyLength: 1234 }
+Configuración Supabase: { hasUrl: true, hasServiceKey: true }
+Guardar lead de Facebook: Intento 1/3
+Guardar lead de Facebook: Error en intento 1: timeout
+Guardar lead de Facebook: Esperando 1500ms antes del siguiente intento
+Guardar lead de Facebook: Intento 2/3
+Guardar lead de Facebook: Éxito en intento 2
+Lead de Facebook guardado exitosamente
 ``` 
