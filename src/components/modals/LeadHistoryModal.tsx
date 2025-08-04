@@ -7,10 +7,12 @@ import { formatDateTime } from '@/lib/utils/dates';
 interface HistoryEntry {
   id: string;
   created_at: string;
-  lead_id: string;
+  lead_id?: string;
+  contact_id?: string;
   action: string;
   description: string;
   user_id?: string;
+  source: 'lead' | 'contact';
   user?: {
     id: string;
     full_name: string;
@@ -35,6 +37,8 @@ const actionLabels: Record<string, string> = {
   task_deleted: 'Tarea Eliminada',
   lead_deleted: 'Lead Eliminado',
   lead_archived: 'Lead Archivado',
+  budget_created: 'Presupuesto Creado',
+  whatsapp_sent: 'WhatsApp Enviado',
 };
 
 // Colores para diferentes tipos de acciones
@@ -49,6 +53,8 @@ const actionColors: Record<string, string> = {
   task_deleted: 'bg-red-100 text-red-800',
   lead_deleted: 'bg-gray-100 text-gray-800',
   lead_archived: 'bg-orange-100 text-orange-800',
+  budget_created: 'bg-green-100 text-green-800',
+  whatsapp_sent: 'bg-green-100 text-green-800',
 };
 
 export function LeadHistoryModal({ isOpen, onClose, leadId }: LeadHistoryModalProps) {
@@ -68,19 +74,88 @@ export function LeadHistoryModal({ isOpen, onClose, leadId }: LeadHistoryModalPr
     
     try {
       const supabase = createClient();
-      const { data, error } = await supabase
+      const allHistory: HistoryEntry[] = [];
+
+      // Obtener historial del lead
+      const { data: leadHistory, error: leadError } = await supabase
         .from('lead_history')
         .select(`
-          *,
-          user:users(id, full_name)
+          id,
+          created_at,
+          lead_id,
+          user_id,
+          action,
+          description
         `)
         .eq('lead_id', leadId)
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
-      setHistory(data || []);
+      if (leadError) throw leadError;
+      
+      // Transformar historial del lead
+      const transformedLeadHistory = (leadHistory || []).map(entry => ({
+        ...entry,
+        source: 'lead' as const
+      }));
+      
+      allHistory.push(...transformedLeadHistory);
+
+      // Buscar si este lead fue convertido a contacto
+      const { data: contact } = await supabase
+        .from('contacts')
+        .select('id')
+        .eq('original_lead_id', leadId)
+        .single();
+
+      // Si hay contacto asociado, obtener su historial también
+      if (contact?.id) {
+        const { data: contactHistory, error: contactError } = await supabase
+          .from('contact_history')
+          .select(`
+            id,
+            created_at,
+            contact_id,
+            user_id,
+            action,
+            description
+          `)
+          .eq('contact_id', contact.id)
+          .order('created_at', { ascending: false });
+
+        if (contactError && contactError.code !== '42P01') { // Ignorar si la tabla no existe aún
+          throw contactError;
+        }
+
+        // Transformar historial del contacto
+        const transformedContactHistory = (contactHistory || []).map(entry => ({
+          ...entry,
+          source: 'contact' as const
+        }));
+        
+        allHistory.push(...transformedContactHistory);
+      }
+
+      // Ordenar todo el historial por fecha
+      const sortedHistory = allHistory.sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      // Obtener información de usuarios
+      const userIds = [...new Set(sortedHistory.map(entry => entry.user_id).filter(Boolean))];
+      const { data: users } = await supabase
+        .from('users')
+        .select('id, full_name')
+        .in('id', userIds);
+
+      // Combinar información de usuarios con el historial
+      const historyWithUsers = sortedHistory.map(entry => ({
+        ...entry,
+        user: users?.find(user => user.id === entry.user_id) || null
+      }));
+
+      setHistory(historyWithUsers);
     } catch (error) {
-      console.error('Error fetching lead history:', error);
+      console.error('Error fetching combined history:', error);
     } finally {
       setIsLoading(false);
     }
@@ -147,11 +222,20 @@ export function LeadHistoryModal({ isOpen, onClose, leadId }: LeadHistoryModalPr
                           {formatDateTime(entry.created_at)}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-xs">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            actionColors[entry.action] || 'bg-gray-100 text-gray-800'
-                          }`}>
-                            {actionLabels[entry.action] || entry.action}
-                          </span>
+                          <div className="flex flex-col gap-1">
+                            <div className="flex gap-2">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                entry.source === 'lead' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                              }`}>
+                                {entry.source === 'lead' ? 'Lead' : 'Contacto'}
+                              </span>
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                actionColors[entry.action] || 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {actionLabels[entry.action] || entry.action}
+                              </span>
+                            </div>
+                          </div>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-900 font-medium">
                           {entry.user?.full_name || 'Sistema'}

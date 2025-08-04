@@ -8,11 +8,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import ReactSelect from 'react-select';
 import { useContacts } from '@/hooks/useContacts';
+import { useLeads } from '@/hooks/useLeads';
 import { useAuth } from '@/contexts/AuthContext';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import type { Budget } from '@/types';
+import type { Lead } from '@/types/supabase';
 import { toast } from 'sonner';
 
 interface BudgetFormProps {
@@ -20,29 +23,62 @@ interface BudgetFormProps {
   onCancel: () => void;
   initialData?: Partial<Budget>;
   mode?: 'modal' | 'editor';
+  selectedLead?: Lead | null;
 }
 
-export function BudgetForm({ onSubmit, onCancel, initialData, mode = 'modal' }: BudgetFormProps) {
-  const [title, setTitle] = useState(initialData?.title || '');
+export function BudgetForm({ onSubmit, onCancel, initialData, mode = 'modal', selectedLead }: BudgetFormProps) {
+  const [title, setTitle] = useState(
+    initialData?.title || 
+    (selectedLead ? `Presupuesto para ${selectedLead.full_name}` : '')
+  );
   const [selectedContact, setSelectedContact] = useState<string>(initialData?.contact_id || '');
+  const [selectedLeadId, setSelectedLeadId] = useState<string>(initialData?.lead_id || (selectedLead?.id && !initialData ? selectedLead.id : ''));
+  const [selectedType, setSelectedType] = useState<'contact' | 'lead'>(
+    selectedLead ? 'lead' : 
+    initialData?.contact_id ? 'contact' : 
+    initialData?.lead_id ? 'lead' : 'contact'
+  );
   const [content, setContent] = useState(initialData?.description || '');
   const [isSaving, setIsSaving] = useState(false);
   const { currentOrganization, currentBranch, user } = useAuth();
   const { contacts } = useContacts(currentOrganization?.id, currentBranch?.id);
+  const { leads } = useLeads(currentOrganization?.id, currentBranch?.id);
+
+  // Preparar opciones para react-select
+  const contactOptions = contacts.map(contact => ({
+    value: contact.id,
+    label: contact.full_name,
+    subtitle: `${contact.email || 'Sin email'} • ${contact.phone}`,
+    type: 'contact' as const
+  }));
+
+  const leadOptions = leads.map(lead => ({
+    value: lead.id,
+    label: lead.full_name,
+    subtitle: `${lead.inquiry_number} • ${lead.origin} • ${lead.pax_count} pax`,
+    type: 'lead' as const
+  }));
+
+  const allOptions = [
+    ...contactOptions.map(opt => ({ ...opt, group: 'Contactos' })),
+    ...leadOptions.map(opt => ({ ...opt, group: 'Leads' }))
+  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     try {
+      const baseData = {
+        title,
+        contact_id: selectedContact || null,
+        lead_id: selectedLeadId || (selectedLead?.id || null),
+      };
+
       if (mode === 'modal') {
-        await onSubmit({
-          title,
-          contact_id: selectedContact || null,
-        });
+        await onSubmit(baseData);
       } else {
         await onSubmit({
-          title,
-          contact_id: selectedContact || null,
+          ...baseData,
           description: content,
           status: 'not_sent',
           organization_id: currentOrganization?.id || '',
@@ -65,9 +101,14 @@ export function BudgetForm({ onSubmit, onCancel, initialData, mode = 'modal' }: 
         <div className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-4">
             <h2 className="text-2xl font-bold">{title}</h2>
-            {selectedContact && contacts.find(c => c.id === selectedContact) && (
+            {selectedLead && (
               <span className="text-gray-500">
-                - {contacts.find(c => c.id === selectedContact)?.full_name}
+                - {selectedLead.full_name} (Lead)
+              </span>
+            )}
+            {!selectedLead && selectedContact && contacts.find(c => c.id === selectedContact) && (
+              <span className="text-gray-500">
+                - {contacts.find(c => c.id === selectedContact)?.full_name} (Contacto)
               </span>
             )}
           </div>
@@ -130,23 +171,79 @@ export function BudgetForm({ onSubmit, onCancel, initialData, mode = 'modal' }: 
         />
       </div>
 
-      <div>
-        <label htmlFor="contact" className="block text-sm font-medium text-gray-700 mb-1">
-          Contacto (Opcional)
-        </label>
-        <Select value={selectedContact} onValueChange={setSelectedContact}>
-          <SelectTrigger>
-            <SelectValue placeholder="Seleccionar contacto" />
-          </SelectTrigger>
-          <SelectContent>
-            {contacts.map((contact) => (
-              <SelectItem key={contact.id} value={contact.id}>
-                {contact.full_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {selectedLead && mode === 'modal' && !initialData ? (
+        // Solo mostrar información fija del lead cuando se crea desde un lead específico (no en edición)
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Lead Asociado
+          </label>
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <div className="text-sm font-medium text-blue-900">{selectedLead.full_name}</div>
+            <div className="text-xs text-blue-700 mt-1">
+              <span>Email: {selectedLead.email || 'No especificado'}</span>
+              <span className="ml-3">Teléfono: {selectedLead.phone}</span>
+            </div>
+            <div className="text-xs text-blue-700 mt-1">
+              <span>Inquiry: {selectedLead.inquiry_number}</span>
+              <span className="ml-3">Origen: {selectedLead.origin}</span>
+              <span className="ml-3">Pax: {selectedLead.pax_count}</span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Asociar con Contacto o Lead (Opcional)
+          </label>
+          <ReactSelect
+            options={allOptions}
+            value={allOptions.find(opt => 
+              opt.value === selectedContact || opt.value === selectedLeadId
+            ) || null}
+            onChange={(option) => {
+              if (option) {
+                if (option.type === 'contact') {
+                  setSelectedContact(option.value);
+                  setSelectedLeadId('');
+                } else {
+                  setSelectedLeadId(option.value);
+                  setSelectedContact('');
+                }
+              } else {
+                setSelectedContact('');
+                setSelectedLeadId('');
+              }
+            }}
+            formatOptionLabel={(option) => (
+              <div>
+                <div className="font-medium">{option.label}</div>
+                <div className="text-xs text-gray-500">{option.subtitle}</div>
+              </div>
+            )}
+            formatGroupLabel={(data) => (
+              <div className="font-semibold text-gray-700 text-sm py-1">
+                {data.label}
+              </div>
+            )}
+            options={[
+              {
+                label: 'Contactos',
+                options: contactOptions
+              },
+              {
+                label: 'Leads', 
+                options: leadOptions
+              }
+            ]}
+            placeholder="Buscar contacto o lead..."
+            isClearable
+            isSearchable
+            className="text-sm"
+            classNamePrefix="react-select"
+            noOptionsMessage={() => "No se encontraron resultados"}
+          />
+        </div>
+      )}
 
       <div className="flex justify-end space-x-2 pt-4">
         <Button 

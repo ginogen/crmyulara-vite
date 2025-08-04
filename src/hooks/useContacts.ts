@@ -15,6 +15,8 @@ type Contact = {
   organization_id: string;
   branch_id: string;
   created_at: string;
+  original_lead_id?: string;
+  lead_email?: string;
 };
 
 export const useContacts = (organizationId?: string, branchId?: string) => {
@@ -43,7 +45,10 @@ export const useContacts = (organizationId?: string, branchId?: string) => {
       try {
         let query = supabase
           .from('contacts')
-          .select('*')
+          .select(`
+            *,
+            leads!original_lead_id(email)
+          `)
           .order('created_at', { ascending: false });
 
         // Aplicar filtros según el rol del usuario
@@ -63,7 +68,14 @@ export const useContacts = (organizationId?: string, branchId?: string) => {
         const { data, error } = await query;
 
         if (error) throw error;
-        return data || [];
+        
+        // Procesar los datos para incluir el email del lead
+        const processedData = (data || []).map(contact => ({
+          ...contact,
+          lead_email: contact.leads?.email || null
+        }));
+        
+        return processedData;
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Error al cargar contactos';
         setError(errorMsg);

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useContactHistory } from '@/hooks/useContactHistory';
 import { toast } from 'sonner';
 import { formatPhoneNumber } from '@/lib/utils/strings';
 
@@ -25,6 +26,7 @@ export function WhatsAppModal({ isOpen, onClose, contact }: WhatsAppModalProps) 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const { currentOrganization, user } = useAuth();
+  const { logWhatsAppSent } = useContactHistory();
 
   useEffect(() => {
     const fetchTemplates = async () => {
@@ -93,6 +95,8 @@ export function WhatsAppModal({ isOpen, onClose, contact }: WhatsAppModalProps) 
     if (!currentOrganization || !user) return;
 
     const supabase = createClient();
+    
+    // Guardar en whatsapp_messages
     const { error } = await supabase
       .from('whatsapp_messages')
       .insert([
@@ -107,6 +111,24 @@ export function WhatsAppModal({ isOpen, onClose, contact }: WhatsAppModalProps) 
     if (error) {
       console.error('Error saving message to history:', error);
       toast.error('Error al guardar el mensaje en el historial');
+      return;
+    }
+
+    // Verificar si este contacto tiene un lead asociado para registrar en lead_history
+    const { data: contactWithLead } = await supabase
+      .from('contacts')
+      .select('original_lead_id')
+      .eq('id', contact.id)
+      .single();
+
+    // Si el contacto tiene un lead asociado, registrar en lead_history
+    if (contactWithLead?.original_lead_id) {
+      await supabase.from('lead_history').insert({
+        lead_id: contactWithLead.original_lead_id,
+        user_id: user.id,
+        action: 'whatsapp_sent',
+        description: `Mensaje de WhatsApp enviado a ${contact.full_name}: "${message.substring(0, 100)}${message.length > 100 ? '...' : ''}"`,
+      });
     }
   };
 
@@ -121,6 +143,9 @@ export function WhatsAppModal({ isOpen, onClose, contact }: WhatsAppModalProps) 
     
     // Guardar en el historial
     await saveMessageToHistory();
+    
+    // Registrar en historial del contacto
+    await logWhatsAppSent(contact.id, contact.full_name, message);
     
     // Abrir en nueva pestaña
     window.open(whatsappUrl, '_blank');

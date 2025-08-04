@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { Separator } from "@/components/ui/separator"
 import { Card, CardContent } from "@/components/ui/card"
 import { toast } from "sonner"
@@ -183,16 +184,13 @@ export function ContactTasksModal({ isOpen, onClose, contactId }: ContactTasksMo
                     placeholder="Título de la tarea"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="due_date">Fecha límite</Label>
-                  <Input
-                    type="datetime-local"
-                    id="due_date"
-                    required
-                    value={newTask.due_date}
-                    onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
-                  />
-                </div>
+                <DateTimePicker
+                  label="Fecha límite"
+                  value={newTask.due_date}
+                  onChange={(value) => setNewTask({ ...newTask, due_date: value })}
+                  required
+                  placeholder="Seleccionar fecha y hora límite"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="description">Descripción</Label>

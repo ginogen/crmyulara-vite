@@ -145,10 +145,16 @@ export type Budget = {
   title: string;
   description: string;
   amount: number;
-  status: 'draft' | 'pending' | 'approved' | 'rejected';
+  status: 'not_sent' | 'sent' | 'approved' | 'rejected';
   assigned_to: string;
   organization_id: string;
   branch_id: string;
+  contact_id?: string;
+  lead_id?: string;
+  public_url?: string;
+  pdf_url?: string;
+  sent_at?: string;
+  sent_by?: string;
 };
 
 export type FacebookIntegration = {

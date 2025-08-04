@@ -26,6 +26,7 @@ interface Contact {
   branch_id: string;
   assigned_to: string;
   original_lead_id?: string;
+  lead_email?: string;
 }
 
 // Exportar el componente como default y con nombre
@@ -628,7 +629,9 @@ export function ContactsPage() {
                           </button>
                         </div>
                       </td>
-                      <td className="px-4 py-2 whitespace-nowrap text-gray-700 truncate text-xs">{contact.email}</td>
+                      <td className="px-4 py-2 whitespace-nowrap text-gray-700 truncate text-xs">
+                        {contact.lead_email || contact.email || '-'}
+                      </td>
                       <td className="px-4 py-2 whitespace-nowrap">
                         <Select
                           options={tags.map(tag => ({ 

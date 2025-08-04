@@ -4,6 +4,7 @@ import { XMarkIcon, PlusIcon, TrashIcon, CalendarIcon, CheckCircleIcon, Exclamat
 import { createClient } from '@/lib/supabase/client';
 import { formatDateTime } from '@/lib/utils/dates';
 import { useAuth } from '@/contexts/AuthContext';
+import { DateTimePicker } from '@/components/ui/date-time-picker';
 
 interface Task {
   id: string;
@@ -244,24 +245,13 @@ export function LeadTasksModal({ isOpen, onClose, leadId }: LeadTasksModalProps)
                     required
                   />
                 </div>
-                <div>
-                  <label htmlFor="due_date" className="block text-sm font-medium text-gray-700 mb-1">
-                    Fecha límite
-                  </label>
-                  <div className="relative rounded-lg shadow-sm">
-                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                      <CalendarIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
-                    </div>
-                    <input
-                      type="datetime-local"
-                      id="due_date"
-                      value={newTask.due_date}
-                      onChange={(e: any) => setNewTask({ ...newTask, due_date: e.target.value })}
-                      className="block w-full rounded-lg border-gray-300 pl-10 focus:border-blue-500 focus:ring-blue-500 text-sm transition-colors"
-                      required
-                    />
-                  </div>
-                </div>
+                <DateTimePicker
+                  label="Fecha límite"
+                  value={newTask.due_date}
+                  onChange={(value) => setNewTask({ ...newTask, due_date: value })}
+                  required
+                  placeholder="Seleccionar fecha y hora límite"
+                />
                 <div className="sm:col-span-2">
                   <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
                     Descripción

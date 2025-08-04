@@ -3,6 +3,8 @@ import Sidebar from '@/components/dashboard/Sidebar';
 import { Topbar } from './Topbar';
 import { UserRole } from '@/types/user';
 import { useState } from 'react';
+import { useTaskNotifications } from '@/hooks/useTaskNotifications';
+import { Toaster } from 'sonner';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -11,6 +13,9 @@ interface MainLayoutProps {
 export function MainLayout({ children }: MainLayoutProps) {
   const { user } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Initialize task notifications
+  useTaskNotifications();
 
   // Manejar el cambio de estado de la barra lateral
   const handleSidebarToggle = (collapsed: boolean) => {
@@ -34,6 +39,14 @@ export function MainLayout({ children }: MainLayoutProps) {
           {children}
         </main>
       </div>
+      
+      {/* Toaster for notifications */}
+      <Toaster 
+        position="top-right"
+        expand={true}
+        richColors={true}
+        closeButton={true}
+      />
     </div>
   );
 } 

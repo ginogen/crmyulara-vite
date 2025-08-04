@@ -49,10 +49,12 @@ interface ContactManagementModalProps {
 
 interface HistoryEntry {
   id: string;
-  lead_id: string;
+  lead_id?: string;
+  contact_id?: string;
   action: string;
   description: string;
   created_at: string;
+  source: 'lead' | 'contact';
   user?: {
     full_name: string;
   };
@@ -112,22 +114,88 @@ export function ContactManagementModal({ isOpen, onClose, contact }: ContactMana
 
   useEffect(() => {
     const fetchHistory = async () => {
-      if (!contact?.original_lead_id) return;
+      if (!contact?.id) return;
 
       try {
-        const { data, error } = await supabase
-          .from('lead_history')
+        const allHistory: HistoryEntry[] = [];
+
+        // Obtener historial del lead si existe
+        if (contact.original_lead_id) {
+          const { data: leadHistory, error: leadError } = await supabase
+            .from('lead_history')
+            .select(`
+              id,
+              created_at,
+              lead_id,
+              user_id,
+              action,
+              description
+            `)
+            .eq('lead_id', contact.original_lead_id)
+            .order('created_at', { ascending: false });
+
+          if (leadError) throw leadError;
+          
+          // Transformar historial del lead
+          const transformedLeadHistory = (leadHistory || []).map(entry => ({
+            ...entry,
+            source: 'lead' as const
+          }));
+          
+          allHistory.push(...transformedLeadHistory);
+        }
+
+        // Obtener historial del contacto
+        const { data: contactHistory, error: contactError } = await supabase
+          .from('contact_history')
           .select(`
-            *,
-            user:users(full_name)
+            id,
+            created_at,
+            contact_id,
+            user_id,
+            action,
+            description
           `)
-          .eq('lead_id', contact.original_lead_id)
+          .eq('contact_id', contact.id)
           .order('created_at', { ascending: false });
 
-        if (error) throw error;
-        setHistory(data || []);
+        if (contactError && contactError.code !== '42P01') { // Ignorar si la tabla no existe aún
+          throw contactError;
+        }
+
+        // Transformar historial del contacto
+        const transformedContactHistory = (contactHistory || []).map(entry => ({
+          ...entry,
+          source: 'contact' as const
+        }));
+        
+        allHistory.push(...transformedContactHistory);
+
+        // Ordenar todo el historial por fecha
+        const sortedHistory = allHistory.sort((a, b) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+
+        // Obtener información de usuarios
+        const userIds = [...new Set(sortedHistory.map(entry => entry.user_id).filter(Boolean))];
+        if (userIds.length > 0) {
+          const { data: users } = await supabase
+            .from('users')
+            .select('id, full_name')
+            .in('id', userIds);
+
+          // Combinar información de usuarios con el historial
+          const historyWithUsers = sortedHistory.map(entry => ({
+            ...entry,
+            user: users?.find(user => user.id === entry.user_id) || null
+          }));
+
+          setHistory(historyWithUsers);
+        } else {
+          setHistory(sortedHistory);
+        }
       } catch (error) {
-        console.error('Error fetching lead history:', error);
+        console.error('Error fetching combined history:', error);
       } finally {
         setIsLoading(false);
       }
@@ -500,7 +568,15 @@ export function ContactManagementModal({ isOpen, onClose, contact }: ContactMana
                         <TableRow key={entry.id} className="hover:bg-muted/50">
                           <TableCell>{formatDate(entry.created_at)}</TableCell>
                           <TableCell>
-                            <Badge variant="outline">{entry.action}</Badge>
+                            <div className="flex gap-2">
+                              <Badge 
+                                variant={entry.source === 'lead' ? 'default' : 'secondary'}
+                                className="text-xs"
+                              >
+                                {entry.source === 'lead' ? 'Lead' : 'Contacto'}
+                              </Badge>
+                              <Badge variant="outline">{entry.action}</Badge>
+                            </div>
                           </TableCell>
                           <TableCell>{entry.description}</TableCell>
                           <TableCell>{entry.user?.full_name}</TableCell>

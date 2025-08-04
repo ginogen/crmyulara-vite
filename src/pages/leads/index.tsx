@@ -6,7 +6,7 @@ import { formatDate } from '@/lib/utils/dates';
 import { generateInquiryNumber } from '@/lib/utils/strings';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLeads } from '@/hooks/useLeads';
-import { LeadModal, LeadHistoryModal, LeadTasksModal, WhatsAppModal, MakeIntegrationModal } from '@/components/modals';
+import { LeadModal, LeadHistoryModal, LeadTasksModal, WhatsAppModal, MakeIntegrationModal, BudgetModal } from '@/components/modals';
 import Select, { SingleValue, ActionMeta } from 'react-select';
 import { Badge } from "@/components/ui/badge"
 import {
@@ -19,6 +19,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import Papa from 'papaparse';
+import { useBudgets } from '@/hooks/useBudgets';
+import type { Database } from '@/lib/supabase/database.types';
+import { useNavigate } from 'react-router-dom';
 
 const statusLabels: Record<Lead['status'], string> = {
   new: 'Nuevo',
@@ -256,6 +259,7 @@ const ArchiveLeadModal: React.FC<ArchiveLeadModalProps> = ({ isOpen, onClose, on
 
 export function LeadsPage() {
   const { user, currentOrganization, currentBranch, userRole, loading } = useAuth();
+  const navigate = useNavigate();
   const [filters, setFilters] = useState({
     status: '',
     assignedTo: '',
@@ -289,6 +293,10 @@ export function LeadsPage() {
   // Agregar estados para el modal de archivado
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
   const [leadToArchive, setLeadToArchive] = useState<{ id: string; name: string } | null>(null);
+  
+  // Estados para el modal de presupuesto
+  const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
+  const [selectedLeadForBudget, setSelectedLeadForBudget] = useState<Lead | null>(null);
 
   const {
     leads,
@@ -299,6 +307,9 @@ export function LeadsPage() {
     updateLeadAssignment,
     deleteLead,
   } = useLeads(currentOrganization?.id, currentBranch?.id);
+
+  // Hook para presupuestos
+  const { createBudget } = useBudgets(currentOrganization?.id, currentBranch?.id);
 
   useEffect(() => {
     const fetchAgents = async () => {
@@ -704,6 +715,54 @@ export function LeadsPage() {
     } catch (error) {
       console.error('Error en asignación masiva:', error);
       toast.error('Error al asignar los leads');
+    }
+  };
+
+  // Función para crear presupuesto desde lead
+  const handleCreateBudgetFromLead = async (budgetData: Omit<Database['public']['Tables']['budgets']['Row'], 'id' | 'created_at'>) => {
+    try {
+      if (!selectedLeadForBudget || !currentOrganization?.id || !currentBranch?.id || !user?.id) {
+        toast.error('Faltan datos requeridos para crear el presupuesto');
+        return;
+      }
+
+      const newBudget = {
+        ...budgetData,
+        organization_id: currentOrganization.id,
+        branch_id: currentBranch.id,
+        assigned_to: user.id,
+        lead_id: selectedLeadForBudget.id,
+        // Agregar información del lead como referencia
+        description: `${budgetData.description}\n\nCreado desde Lead: ${selectedLeadForBudget.full_name} (${selectedLeadForBudget.inquiry_number})`,
+      };
+
+      const createdBudget = await createBudget.mutateAsync(newBudget);
+      
+      // Registrar en historial del lead
+      if (user?.id) {
+        const supabase = createClient();
+        await supabase.from('lead_history').insert({
+          lead_id: selectedLeadForBudget.id,
+          user_id: user.id,
+          action: 'budget_created',
+          description: `Presupuesto creado: "${createdBudget.title}" - ${createdBudget.amount || 0} (ID: ${createdBudget.id})`,
+        });
+      }
+      
+      toast.success('Presupuesto creado correctamente');
+      setIsBudgetModalOpen(false);
+      setSelectedLeadForBudget(null);
+      
+      // Redirigir a la página de presupuestos con el presupuesto recién creado en modo edición
+      navigate('/budgets', { 
+        state: { 
+          editBudget: createdBudget,
+          openEditor: true 
+        } 
+      });
+    } catch (error) {
+      console.error('Error creating budget from lead:', error);
+      toast.error('Error al crear el presupuesto');
     }
   };
 
@@ -1240,6 +1299,32 @@ export function LeadsPage() {
                             />
                           </svg>
                         </button>
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            setSelectedLeadForBudget(lead);
+                            setIsBudgetModalOpen(true);
+                          }}
+                          className="p-1 rounded-full hover:bg-gray-100"
+                          title="Crear presupuesto"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="w-4 h-4 text-blue-600"
+                          >
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14,2 14,8 20,8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                            <polyline points="10,9 9,9 8,9"/>
+                          </svg>
+                        </button>
                       </div>
                     </td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-900">
@@ -1460,6 +1545,17 @@ export function LeadsPage() {
           leadName={leadToArchive.name}
         />
       )}
+
+      {/* Modal para crear presupuesto desde lead */}
+      <BudgetModal
+        isOpen={isBudgetModalOpen}
+        selectedLead={selectedLeadForBudget}
+        onClose={() => {
+          setIsBudgetModalOpen(false);
+          setSelectedLeadForBudget(null);
+        }}
+        onSubmit={handleCreateBudgetFromLead}
+      />
     </div>
   );
 } 
