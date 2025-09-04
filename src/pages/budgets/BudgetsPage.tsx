@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { BudgetForm } from '@/components/forms/BudgetForm';
 import { Modal } from '@/components/ui/Modal';
 import { useBudgets } from '@/hooks/useBudgets';
@@ -26,6 +26,7 @@ export function BudgetsPage() {
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
   const location = useLocation();
+  const navigate = useNavigate();
   
   const { currentOrganization, currentBranch, user } = useAuth();
   const { budgets, isLoading: budgetsLoading, createBudget, updateBudget } = useBudgets(
@@ -212,9 +213,17 @@ export function BudgetsPage() {
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">Presupuestos</h1>
-          <Button onClick={() => setIsModalOpen(true)}>
-            Nuevo Presupuesto
-          </Button>
+          <div className="flex space-x-2">
+            <Button 
+              variant="outline" 
+              onClick={() => navigate('/budgets/templates')}
+            >
+              Gestionar Plantillas
+            </Button>
+            <Button onClick={() => setIsModalOpen(true)}>
+              Nuevo Presupuesto
+            </Button>
+          </div>
         </div>
 
         {/* Filtro de búsqueda */}
@@ -250,6 +259,9 @@ export function BudgetsPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Fecha
                 </th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Ver
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Acciones
                 </th>
@@ -258,7 +270,7 @@ export function BudgetsPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredBudgets.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
                     {searchFilter ? 'No se encontraron presupuestos que coincidan con la búsqueda' : 'No hay presupuestos disponibles'}
                   </td>
                 </tr>
@@ -305,6 +317,20 @@ export function BudgetsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {new Date(budget.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      {budget.public_url ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(budget.public_url, '_blank')}
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          VER
+                        </Button>
+                      ) : (
+                        <span className="text-gray-400 text-xs">Sin enlace</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <DropdownMenu>

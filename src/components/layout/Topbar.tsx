@@ -1,6 +1,13 @@
-import { BellIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
+import { BellIcon, ChevronDownIcon, ClockIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { getTodayTasks, getOverdueTasks, getUpcomingTasks } from '@/lib/utils/notifications';
+import { Database } from '@/lib/supabase/database.types';
+
+type Task = Database['public']['Tables']['tasks']['Row'] & {
+  contacts?: { full_name: string };
+  leads?: { name: string };
+};
 
 // Definimos las interfaces
 interface Organization {
@@ -45,6 +52,10 @@ export function Topbar() {
     loading
   } = useAuth();
 
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [tasksLoading, setTasksLoading] = useState(false);
+
   // Manejador para cambiar organización
   const handleOrganizationChange = (selectedOrg: Organization) => {
     setCurrentOrganization(selectedOrg);
@@ -62,6 +73,60 @@ export function Topbar() {
   const canChangeOrganization = userRole === 'super_admin';
   const canChangeBranch = userRole === 'super_admin' || userRole === 'org_admin';
 
+  // Cargar tareas para notificaciones
+  useEffect(() => {
+    if (user?.id && !loading) {
+      loadUserTasks();
+    }
+  }, [user?.id, loading]);
+
+  const loadUserTasks = async () => {
+    if (!user?.id) return;
+    
+    setTasksLoading(true);
+    try {
+      const [todayTasks, overdueTasks, upcomingTasks] = await Promise.all([
+        getTodayTasks(user.id),
+        getOverdueTasks(user.id),
+        getUpcomingTasks(user.id, 3) // próximos 3 días
+      ]);
+      
+      // Combinar y ordenar tareas por fecha de vencimiento
+      const allTasks = [...overdueTasks, ...todayTasks, ...upcomingTasks];
+      const uniqueTasks = allTasks.filter((task, index, self) => 
+        index === self.findIndex(t => t.id === task.id)
+      );
+      
+      uniqueTasks.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+      setTasks(uniqueTasks);
+    } catch (error) {
+      console.error('Error loading tasks:', error);
+    } finally {
+      setTasksLoading(false);
+    }
+  };
+
+  const formatDueDate = (dueDate: string) => {
+    const date = new Date(dueDate);
+    const now = new Date();
+    const diffHours = (date.getTime() - now.getTime()) / (1000 * 60 * 60);
+    
+    if (diffHours < 0) {
+      return { text: 'Vencida', color: 'text-red-600', urgent: true };
+    } else if (diffHours < 1) {
+      return { text: `${Math.round(diffHours * 60)}min`, color: 'text-red-500', urgent: true };
+    } else if (diffHours < 24) {
+      return { text: `${Math.round(diffHours)}h`, color: 'text-orange-500', urgent: false };
+    } else {
+      return { text: date.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }), color: 'text-gray-600', urgent: false };
+    }
+  };
+
+  const urgentTasksCount = tasks.filter(task => {
+    const dueInfo = formatDueDate(task.due_date);
+    return dueInfo.urgent;
+  }).length;
+
   // Para depuración en consola
   useEffect(() => {
     console.log('Topbar datos disponibles:', { 
@@ -69,15 +134,17 @@ export function Topbar() {
       currentBranch, 
       organizations: organizations?.length || 0,
       branches: branches?.length || 0,
-      loading
+      loading,
+      tasksCount: tasks.length
     });
-  }, [currentOrganization, currentBranch, organizations, branches, loading]);
+  }, [currentOrganization, currentBranch, organizations, branches, loading, tasks.length]);
 
   // Función para cerrar dropdowns al hacer clic fuera de ellos
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const orgDropdown = document.getElementById('org-dropdown');
       const branchDropdown = document.getElementById('branch-dropdown');
+      const notificationDropdown = event.target as Element;
       const orgTrigger = document.getElementById('org-trigger');
       const branchTrigger = document.getElementById('branch-trigger');
       
@@ -89,6 +156,11 @@ export function Topbar() {
       if (branchDropdown && !branchDropdown.contains(event.target as Node) && 
           branchTrigger && !branchTrigger.contains(event.target as Node)) {
         branchDropdown.classList.add('hidden');
+      }
+      
+      // Cerrar dropdown de notificaciones
+      if (!notificationDropdown.closest('.notification-dropdown')) {
+        setShowNotifications(false);
       }
     };
     
@@ -202,13 +274,84 @@ export function Topbar() {
           {/* Notificaciones y Perfil */}
           <div className="flex items-center space-x-4">
             {/* Notificaciones */}
-            <button
-              type="button"
-              className="p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none"
-            >
-              <span className="sr-only">Ver notificaciones</span>
-              <BellIcon className="h-6 w-6" aria-hidden="true" />
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNotifications(!showNotifications);
+                  if (!showNotifications) loadUserTasks();
+                }}
+                className="p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none relative"
+              >
+                <span className="sr-only">Ver notificaciones</span>
+                <BellIcon className="h-6 w-6" aria-hidden="true" />
+                {urgentTasksCount > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
+                    {urgentTasksCount > 9 ? '9+' : urgentTasksCount}
+                  </span>
+                )}
+              </button>
+              
+              {/* Dropdown de notificaciones */}
+              {showNotifications && (
+                <div className="notification-dropdown absolute right-0 z-50 mt-2 w-80 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                  <div className="py-1 max-h-96 overflow-y-auto">
+                    <div className="px-4 py-2 border-b border-gray-200">
+                      <h3 className="text-sm font-medium text-gray-900">Tareas pendientes</h3>
+                      {tasksLoading && <span className="text-xs text-gray-500">Cargando...</span>}
+                    </div>
+                    
+                    {tasks.length === 0 && !tasksLoading ? (
+                      <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                        No hay tareas pendientes
+                      </div>
+                    ) : (
+                      tasks.slice(0, 10).map((task) => {
+                        const dueInfo = formatDueDate(task.due_date);
+                        let entityName = 'Sin asignar';
+                        if (task.related_to_type === 'contact' && task.contacts) {
+                          entityName = task.contacts.full_name;
+                        } else if (task.related_to_type === 'lead' && task.leads) {
+                          entityName = task.leads.name;
+                        }
+                        
+                        return (
+                          <div key={task.id} className="px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 truncate">
+                                  {task.title}
+                                </p>
+                                <p className="text-xs text-gray-500 truncate">
+                                  {entityName}
+                                </p>
+                              </div>
+                              <div className="flex items-center space-x-1 ml-2">
+                                {dueInfo.urgent && (
+                                  <ExclamationTriangleIcon className="h-4 w-4 text-red-500" />
+                                )}
+                                <ClockIcon className="h-3 w-3 text-gray-400" />
+                                <span className={`text-xs font-medium ${dueInfo.color}`}>
+                                  {dueInfo.text}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                    
+                    {tasks.length > 10 && (
+                      <div className="px-4 py-2 bg-gray-50 text-center">
+                        <span className="text-xs text-gray-500">
+                          +{tasks.length - 10} tareas más
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Perfil */}
             <div className="flex items-center space-x-3">

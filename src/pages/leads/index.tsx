@@ -1523,6 +1523,7 @@ export function LeadsPage() {
             full_name: selectedLeadForWA.full_name,
             phone: selectedLeadForWA.phone,
           }}
+          isLead={true}
         />
       )}
 

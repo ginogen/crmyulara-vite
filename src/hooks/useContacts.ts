@@ -43,6 +43,8 @@ export const useContacts = (organizationId?: string, branchId?: string) => {
       }
 
       try {
+        console.log('useContacts: Executing query with filters', { organizationId, branchId, userRole });
+        
         let query = supabase
           .from('contacts')
           .select(`
@@ -53,12 +55,20 @@ export const useContacts = (organizationId?: string, branchId?: string) => {
 
         // Aplicar filtros según el rol del usuario
         if (userRole === 'super_admin') {
-          // Super admin puede ver todos los contactos
+          // Super admin puede ver todos los contactos, pero respetando el contexto seleccionado
+          console.log('useContacts: Super admin - filtering by selected organization_id and branch_id');
+          query = query
+            .eq('organization_id', organizationId)
+            .eq('branch_id', branchId);
         } else if (userRole === 'org_admin') {
-          // Org admin solo puede ver contactos de su organización
-          query = query.eq('organization_id', organizationId);
+          // FIXED: Org admin debe ver contactos de su organización Y sucursal específica
+          console.log('useContacts: Org admin - filtering by organization_id AND branch_id');
+          query = query
+            .eq('organization_id', organizationId)
+            .eq('branch_id', branchId);
         } else {
           // branch_manager y sales_agent solo pueden ver contactos asignados a ellos
+          console.log('useContacts: Branch manager/sales agent - filtering by organization_id, branch_id and assigned_to');
           query = query
             .eq('organization_id', organizationId)
             .eq('branch_id', branchId)
@@ -67,13 +77,21 @@ export const useContacts = (organizationId?: string, branchId?: string) => {
 
         const { data, error } = await query;
 
-        if (error) throw error;
+        if (error) {
+          console.error('useContacts: Database error', { error, organizationId, branchId, userRole });
+          throw error;
+        }
         
         // Procesar los datos para incluir el email del lead
         const processedData = (data || []).map(contact => ({
           ...contact,
           lead_email: contact.leads?.email || null
         }));
+        
+        console.log('useContacts: Query successful, returned contacts count:', processedData?.length || 0);
+        console.log('useContacts: First 3 contacts organization_ids:', 
+          processedData?.slice(0, 3).map(contact => ({ id: contact.id, organization_id: contact.organization_id, branch_id: contact.branch_id })) || []
+        );
         
         return processedData;
       } catch (err) {
@@ -83,6 +101,10 @@ export const useContacts = (organizationId?: string, branchId?: string) => {
       }
     },
     enabled: !!organizationId && !!branchId && !!userRole && !!user?.id,
+    gcTime: 0, // No mantener en caché para evitar problemas de cross-contamination
+    staleTime: 0, // Los datos se consideran siempre stale para forzar fetch
+    refetchOnMount: true, // Siempre refetch al montar
+    refetchOnWindowFocus: true // Refetch cuando se enfoca la ventana
   });
 
   // Actualizar el estado local cuando los datos de la consulta cambian

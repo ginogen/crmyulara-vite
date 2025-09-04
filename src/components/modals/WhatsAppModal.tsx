@@ -13,6 +13,7 @@ interface WhatsAppModalProps {
     full_name: string;
     phone: string;
   };
+  isLead?: boolean;
 }
 
 interface Template {
@@ -21,10 +22,12 @@ interface Template {
   content: string;
 }
 
-export function WhatsAppModal({ isOpen, onClose, contact }: WhatsAppModalProps) {
+export function WhatsAppModal({ isOpen, onClose, contact, isLead = false }: WhatsAppModalProps) {
   const [message, setMessage] = useState('');
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState('');
+  const [budgetLink, setBudgetLink] = useState<string | null>(null);
+  const [budgetTitle, setBudgetTitle] = useState<string | null>(null);
   const { currentOrganization, user } = useAuth();
   const { logWhatsAppSent } = useContactHistory();
 
@@ -50,6 +53,36 @@ export function WhatsAppModal({ isOpen, onClose, contact }: WhatsAppModalProps) 
     fetchTemplates();
   }, [currentOrganization]);
 
+  useEffect(() => {
+    const fetchBudgetForLead = async () => {
+      if (!isLead || !currentOrganization) return;
+
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('budgets')
+        .select('public_url, title')
+        .eq('lead_id', contact.id)
+        .eq('organization_id', currentOrganization.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (error) {
+        console.error('Error fetching budget for lead:', error);
+        return;
+      }
+
+      if (data && data.length > 0 && data[0]?.public_url) {
+        setBudgetLink(data[0].public_url);
+        setBudgetTitle(data[0].title);
+      } else {
+        setBudgetLink(null);
+        setBudgetTitle(null);
+      }
+    };
+
+    fetchBudgetForLead();
+  }, [isLead, contact.id, currentOrganization]);
+
   const handleTemplateChange = (templateId: string) => {
     setSelectedTemplate(templateId);
     const template = templates.find(t => t.id === templateId);
@@ -59,6 +92,25 @@ export function WhatsAppModal({ isOpen, onClose, contact }: WhatsAppModalProps) 
       content = content.replace(/\{nombre\}/g, contact.full_name);
       setMessage(content);
     }
+  };
+
+  const copyBudgetLink = async () => {
+    if (!budgetLink) return;
+    
+    try {
+      await navigator.clipboard.writeText(budgetLink);
+      toast.success('Enlace copiado al portapapeles');
+    } catch (error) {
+      console.error('Error copying to clipboard:', error);
+      toast.error('Error al copiar el enlace');
+    }
+  };
+
+  const includeBudgetLinkInMessage = () => {
+    if (!budgetLink) return;
+    
+    const linkText = `\n\nPuedes ver tu presupuesto aquí: ${budgetLink}`;
+    setMessage(prev => prev + linkText);
   };
 
   const handleSaveTemplate = async () => {
@@ -188,6 +240,47 @@ export function WhatsAppModal({ isOpen, onClose, contact }: WhatsAppModalProps) 
         </div>
         
         <div className="grid gap-6">
+          {/* Budget Link Section */}
+          {isLead && (
+            <div className="grid gap-2">
+              <label className="text-sm font-semibold text-gray-700">Presupuesto asociado:</label>
+              {budgetLink ? (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-blue-900">{budgetTitle}</p>
+                      <p className="text-xs text-blue-600 font-mono break-all">{budgetLink}</p>
+                    </div>
+                    <div className="flex space-x-2 ml-4">
+                      <button
+                        onClick={copyBudgetLink}
+                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-700 bg-white border border-blue-300 rounded-md hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                        Copiar
+                      </button>
+                      <button
+                        onClick={includeBudgetLinkInMessage}
+                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-700 bg-white border border-blue-300 rounded-md hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Incluir en mensaje
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <p className="text-sm text-gray-600">Sin presupuesto asociado</p>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="grid gap-2">
             <label className="text-sm font-semibold text-gray-700">Plantillas:</label>
             <select

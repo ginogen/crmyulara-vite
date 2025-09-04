@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -11,11 +11,13 @@ import {
 import ReactSelect from 'react-select';
 import { useContacts } from '@/hooks/useContacts';
 import { useLeads } from '@/hooks/useLeads';
+import { useBudgetTemplates } from '@/hooks/useBudgetTemplates';
 import { useAuth } from '@/contexts/AuthContext';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import type { Budget } from '@/types';
 import type { Lead } from '@/types/supabase';
+import type { BudgetTemplate } from '@/types/budget-template';
 import { toast } from 'sonner';
 
 interface BudgetFormProps {
@@ -39,10 +41,32 @@ export function BudgetForm({ onSubmit, onCancel, initialData, mode = 'modal', se
     initialData?.lead_id ? 'lead' : 'contact'
   );
   const [content, setContent] = useState(initialData?.description || '');
+  const [selectedTemplate, setSelectedTemplate] = useState<string>(initialData?.template_id || '');
   const [isSaving, setIsSaving] = useState(false);
   const { currentOrganization, currentBranch, user } = useAuth();
   const { contacts } = useContacts(currentOrganization?.id, currentBranch?.id);
   const { leads } = useLeads(currentOrganization?.id, currentBranch?.id);
+  const { templates } = useBudgetTemplates(currentOrganization?.id, currentBranch?.id);
+
+  // Aplicar plantilla cuando se selecciona
+  useEffect(() => {
+    if (selectedTemplate && selectedTemplate !== 'none' && templates.length > 0) {
+      const template = templates.find(t => t.id === selectedTemplate);
+      if (template && template.default_content && !initialData) {
+        setContent(template.default_content);
+      }
+    }
+  }, [selectedTemplate, templates, initialData]);
+
+  // Seleccionar plantilla por defecto automáticamente para nuevos presupuestos
+  useEffect(() => {
+    if (!initialData && templates.length > 0 && !selectedTemplate) {
+      const defaultTemplate = templates.find(t => t.is_default);
+      if (defaultTemplate) {
+        setSelectedTemplate(defaultTemplate.id);
+      }
+    }
+  }, [templates, initialData, selectedTemplate]);
 
   // Preparar opciones para react-select
   const contactOptions = contacts.map(contact => ({
@@ -68,10 +92,21 @@ export function BudgetForm({ onSubmit, onCancel, initialData, mode = 'modal', se
     e.preventDefault();
     setIsSaving(true);
     try {
+      // Asegurar que solo uno de contact_id o lead_id esté presente
+      const finalLeadId = selectedLeadId || selectedLead?.id;
+      
+      // Validar que al menos uno esté seleccionado
+      if (!selectedContact && !finalLeadId) {
+        toast.error('Debe asociar el presupuesto con un contacto o lead');
+        setIsSaving(false);
+        return;
+      }
+      
       const baseData = {
         title,
-        contact_id: selectedContact || null,
-        lead_id: selectedLeadId || (selectedLead?.id || null),
+        contact_id: selectedContact && !finalLeadId ? selectedContact : null,
+        lead_id: finalLeadId && !selectedContact ? finalLeadId : null,
+        template_id: selectedTemplate && selectedTemplate !== 'none' ? selectedTemplate : null,
       };
 
       if (mode === 'modal') {
@@ -170,6 +205,33 @@ export function BudgetForm({ onSubmit, onCancel, initialData, mode = 'modal', se
           required
         />
       </div>
+
+      {/* Selector de Plantilla */}
+      {mode === 'modal' && (
+        <div>
+          <label htmlFor="template" className="block text-sm font-medium text-gray-700 mb-1">
+            Plantilla
+          </label>
+          <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+            <SelectTrigger>
+              <SelectValue placeholder="Seleccionar plantilla (opcional)" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Sin plantilla</SelectItem>
+              {templates.map((template) => (
+                <SelectItem key={template.id} value={template.id}>
+                  {template.name} {template.is_default && '(Predeterminada)'}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {selectedTemplate && selectedTemplate !== 'none' && templates.find(t => t.id === selectedTemplate)?.description && (
+            <p className="text-xs text-gray-500 mt-1">
+              {templates.find(t => t.id === selectedTemplate)?.description}
+            </p>
+          )}
+        </div>
+      )}
 
       {selectedLead && mode === 'modal' && !initialData ? (
         // Solo mostrar información fija del lead cuando se crea desde un lead específico (no en edición)

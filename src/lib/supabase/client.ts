@@ -8,5 +8,14 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const createClient = () => {
-  return createBrowserClient(supabaseUrl, supabaseAnonKey);
+  return createBrowserClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true,
+      storage: window.localStorage,
+      storageKey: 'crm-yulara-auth',
+      flowType: 'pkce'
+    }
+  });
 }; 

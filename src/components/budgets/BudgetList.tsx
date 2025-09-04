@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useBudgets } from '@/hooks/useBudgets';
 import { Button } from '@/components/ui/button';
 import { BudgetForm } from '@/components/forms/BudgetForm';
+import { BudgetHistoryModal } from '@/components/modals/BudgetHistoryModal';
+import { ClockIcon } from '@heroicons/react/24/outline';
 import type { Database } from '@/lib/supabase/database.types';
 
 type Budget = Database['public']['Tables']['budgets']['Row'];
@@ -13,6 +15,8 @@ interface BudgetListProps {
 export function BudgetList({ onEdit }: BudgetListProps) {
   const { budgets, isLoading, error, createBudget, deleteBudget } = useBudgets();
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [selectedBudgetForHistory, setSelectedBudgetForHistory] = useState<Budget | null>(null);
 
   if (isLoading) {
     return <div>Cargando presupuestos...</div>;
@@ -82,25 +86,54 @@ export function BudgetList({ onEdit }: BudgetListProps) {
                   {new Date(budget.created_at).toLocaleDateString()}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <Button
-                    variant="outline"
-                    onClick={() => onEdit(budget)}
-                  >
-                    Editar
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="ml-2"
-                    onClick={() => deleteBudget.mutateAsync(budget.id)}
-                  >
-                    Eliminar
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => onEdit(budget)}
+                      size="sm"
+                    >
+                      Editar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedBudgetForHistory(budget);
+                        setHistoryModalOpen(true);
+                      }}
+                      size="sm"
+                      className="flex items-center gap-1"
+                    >
+                      <ClockIcon className="w-4 h-4" />
+                      Historial
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => deleteBudget.mutateAsync(budget.id)}
+                      size="sm"
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      Eliminar
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {/* Modal de historial */}
+      {selectedBudgetForHistory && (
+        <BudgetHistoryModal
+          isOpen={historyModalOpen}
+          onClose={() => {
+            setHistoryModalOpen(false);
+            setSelectedBudgetForHistory(null);
+          }}
+          budgetId={selectedBudgetForHistory.id}
+          budgetTitle={selectedBudgetForHistory.title}
+        />
+      )}
     </div>
   );
 } 

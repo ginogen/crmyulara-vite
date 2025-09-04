@@ -78,6 +78,8 @@ export function useLeads(organizationId?: string, branchId?: string) {
       }
 
       try {
+        console.log('useLeads: Executing query with filters', { organizationId, branchId, userRole });
+        
         let query = supabase
           .from('leads')
           .select('*')
@@ -85,17 +87,26 @@ export function useLeads(organizationId?: string, branchId?: string) {
 
         // Aplicar filtros según el rol del usuario
         if (userRole === 'super_admin') {
-          // Super admin puede ver todos los leads
+          // Super admin puede ver todos los leads, pero respetando el contexto seleccionado
+          console.log('useLeads: Super admin - filtering by selected organization_id and branch_id');
+          query = query
+            .eq('organization_id', organizationId)
+            .eq('branch_id', branchId);
         } else if (userRole === 'org_admin') {
-          // Org admin solo puede ver leads de su organización
-          query = query.eq('organization_id', organizationId);
+          // FIXED: Org admin debe ver leads de su organización Y sucursal específica
+          console.log('useLeads: Org admin - filtering by organization_id AND branch_id');
+          query = query
+            .eq('organization_id', organizationId)
+            .eq('branch_id', branchId);
         } else if (userRole === 'branch_manager') {
           // Branch manager puede ver todos los leads de su sucursal
+          console.log('useLeads: Branch manager - filtering by organization_id and branch_id');
           query = query
             .eq('organization_id', organizationId)
             .eq('branch_id', branchId);
         } else {
           // sales_agent solo puede ver leads asignados a ellos
+          console.log('useLeads: Sales agent - filtering by organization_id, branch_id and assigned_to');
           query = query
             .eq('organization_id', organizationId)
             .eq('branch_id', branchId)
@@ -104,15 +115,28 @@ export function useLeads(organizationId?: string, branchId?: string) {
 
         const { data, error } = await query;
 
-        if (error) throw error;
+        if (error) {
+          console.error('useLeads: Database error', { error, organizationId, branchId, userRole });
+          throw error;
+        }
+
+        console.log('useLeads: Query successful, returned leads count:', data?.length || 0);
+        console.log('useLeads: First 3 leads organization_ids:', 
+          data?.slice(0, 3).map(lead => ({ id: lead.id, organization_id: lead.organization_id, branch_id: lead.branch_id })) || []
+        );
         return data || [];
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Error al cargar los leads';
+        console.error('useLeads: Catch error', err);
         setError(errorMessage);
         return [];
       }
     },
     enabled: !!organizationId && !!branchId && !!userRole && !!user?.id,
+    gcTime: 0, // No mantener en caché para evitar problemas de cross-contamination
+    staleTime: 0, // Los datos se consideran siempre stale para forzar fetch
+    refetchOnMount: true, // Siempre refetch al montar
+    refetchOnWindowFocus: true // Refetch cuando se enfoca la ventana
   });
 
   // Actualizar el estado local cuando los datos de la consulta cambian

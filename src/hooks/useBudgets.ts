@@ -56,6 +56,7 @@ export function useBudgets(organizationId?: string, branchId?: string) {
 
   const createBudget = useMutation({
     mutationFn: async (budget: Partial<Budget>) => {
+      // El trigger de la base de datos se encarga de crear el historial automáticamente
       const { data, error } = await supabase
         .from('budgets')
         .insert([budget])
@@ -65,13 +66,16 @@ export function useBudgets(organizationId?: string, branchId?: string) {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['budgets', organizationId, branchId] });
+      // También invalidar el historial del presupuesto creado
+      queryClient.invalidateQueries({ queryKey: ['budget_history', data.id] });
     },
   });
 
   const updateBudget = useMutation({
     mutationFn: async ({ id, ...updates }: { id: string } & Partial<Budget>) => {
+      // El trigger de la base de datos se encarga de crear el historial automáticamente
       const { data, error } = await supabase
         .from('budgets')
         .update(updates)
@@ -82,8 +86,10 @@ export function useBudgets(organizationId?: string, branchId?: string) {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['budgets', organizationId, branchId] });
+      // También invalidar el historial del presupuesto actualizado
+      queryClient.invalidateQueries({ queryKey: ['budget_history', data.id] });
     },
   });
 

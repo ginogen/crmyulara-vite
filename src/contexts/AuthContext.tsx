@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
+import { useQueryClient } from '@tanstack/react-query';
 
 // Definir interfaces para organizaciones y sucursales
 interface Organization {
@@ -65,6 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentBranch, setCurrentBranch] = useState<Branch | null>(null);
   
   const supabase = createClient();
+  const queryClient = useQueryClient();
 
   // Cargar datos reales de Supabase cuando el usuario está autenticado
   useEffect(() => {
@@ -166,9 +168,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, supabase]);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session: any) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session: any) => {
+      console.log('Auth state changed:', event, session?.expires_at);
+      
+      // Detectar diferentes eventos de sesión
+      if (event === 'TOKEN_REFRESHED') {
+        console.log('Token refreshed successfully');
+      } else if (event === 'SIGNED_OUT') {
+        console.log('User signed out');
+      } else if (event === 'SIGNED_IN') {
+        console.log('User signed in');
+      } else if (event === 'USER_UPDATED') {
+        console.log('User updated');
+      }
+      
       setUser(session?.user as DBUser ?? null);
       setLoading(false);
+      
+      // Si hay una sesión activa, programar un refresh antes de que expire
+      if (session && session.expires_at) {
+        const expiresAt = new Date(session.expires_at * 1000);
+        const now = new Date();
+        const timeUntilExpiry = expiresAt.getTime() - now.getTime();
+        
+        console.log('Session expires at:', expiresAt);
+        console.log('Time until expiry (minutes):', timeUntilExpiry / 1000 / 60);
+        
+        // Refresh 1 minuto antes de que expire
+        const refreshTime = timeUntilExpiry - 60000;
+        
+        if (refreshTime > 0) {
+          const refreshTimer = setTimeout(async () => {
+            console.log('Attempting to refresh session...');
+            const { data, error } = await supabase.auth.refreshSession();
+            if (error) {
+              console.error('Error refreshing session:', error);
+            } else {
+              console.log('Session refreshed successfully');
+            }
+          }, refreshTime);
+          
+          return () => {
+            clearTimeout(refreshTimer);
+            subscription.unsubscribe();
+          };
+        }
+      }
     });
 
     return () => {
@@ -200,19 +245,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Función para cambiar organización actual
   const handleSetCurrentOrganization = (org: Organization) => {
+    console.log('AuthContext: Setting current organization', { 
+      previousOrg: currentOrganization, 
+      newOrg: org 
+    });
+    
+    // CRITICAL: Invalidate ALL queries when changing organization
+    console.log('AuthContext: Invalidating all queries due to organization change');
+    queryClient.invalidateQueries();
+    queryClient.clear(); // Clear all cached data
+    
     setCurrentOrganization(org);
     
     // Al cambiar la organización, actualizar también la sucursal
     const firstBranchOfOrg = branches.find((branch: Branch) => branch.organization_id === org.id);
     if (firstBranchOfOrg) {
+      console.log('AuthContext: Auto-setting first branch for new organization', firstBranchOfOrg);
       setCurrentBranch(firstBranchOfOrg);
     } else {
+      console.log('AuthContext: No branches found for organization', org.id);
       setCurrentBranch(null); // Si no hay sucursales para esta organización
     }
   };
 
   // Función para cambiar sucursal actual
   const handleSetCurrentBranch = (branch: Branch) => {
+    console.log('AuthContext: Setting current branch', { 
+      previousBranch: currentBranch, 
+      newBranch: branch 
+    });
+    
+    // Invalidate queries when changing branch
+    console.log('AuthContext: Invalidating queries due to branch change');
+    queryClient.invalidateQueries({ queryKey: ['leads'] });
+    queryClient.invalidateQueries({ queryKey: ['contacts'] });
+    queryClient.invalidateQueries({ queryKey: ['budgets'] });
+    
     setCurrentBranch(branch);
   };
 

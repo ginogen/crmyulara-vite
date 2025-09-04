@@ -12,6 +12,8 @@ import DashboardPage from '@/pages/dashboard/DashboardPage';
 import { ContactsPage } from '@/pages/contacts/ContactsPage';
 import { LeadsPage } from '@/pages/leads/index';
 import { BudgetsPage } from '@/pages/budgets/BudgetsPage';
+import { BudgetTemplatesPage } from '@/pages/budgets/BudgetTemplatesPage';
+import { PublicBudgetPage } from '@/pages/budgets/PublicBudgetPage';
 import { AdminPage } from '@/pages/admin/AdminPage';
 import { OrganizationsPage } from '@/pages/admin/OrganizationsPage';
 import { BranchesPage } from '@/pages/admin/BranchesPage';
@@ -45,6 +47,7 @@ const App = () => {
         {/* Rutas públicas */}
         <Route path="/auth/login" element={<LoginPage />} />
         <Route path="/auth/register" element={<RegisterPage />} />
+        <Route path="/budgets/public/:slug" element={<PublicBudgetPage />} />
 
         {/* Rutas protegidas */}
         <Route
@@ -84,6 +87,14 @@ const App = () => {
           element={
             <ProtectedRoute>
               <BudgetsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/budgets/templates"
+          element={
+            <ProtectedRoute>
+              <BudgetTemplatesPage />
             </ProtectedRoute>
           }
         />

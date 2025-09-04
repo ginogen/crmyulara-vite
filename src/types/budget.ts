@@ -11,6 +11,8 @@ export interface Budget {
   organization_id: string;
   branch_id: string;
   contact_id?: string | null;
+  lead_id?: string | null;
+  template_id?: string | null;
   public_url: string | null;
   pdf_url: string | null;
   sent_at: string | null;

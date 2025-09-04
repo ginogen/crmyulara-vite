@@ -233,6 +233,80 @@ export interface Database {
           sent_at: string | null
           sent_by: string | null
         }
+      }
+      budget_history: {
+        Row: {
+          id: string
+          budget_id: string
+          version_number: number
+          title: string
+          description: string
+          amount: number
+          status: 'not_sent' | 'sent' | 'approved' | 'rejected'
+          assigned_to: string
+          organization_id: string
+          branch_id: string
+          contact_id: string | null
+          lead_id: string | null
+          template_id: string | null
+          public_url: string | null
+          pdf_url: string | null
+          sent_at: string | null
+          sent_by: string | null
+          slug: string | null
+          created_by: string
+          created_at: string
+          action: 'created' | 'updated' | 'status_changed' | 'restored'
+          changes_summary: Json | null
+        }
+        Insert: {
+          id?: string
+          budget_id: string
+          version_number: number
+          title: string
+          description: string
+          amount: number
+          status: 'not_sent' | 'sent' | 'approved' | 'rejected'
+          assigned_to: string
+          organization_id: string
+          branch_id: string
+          contact_id?: string | null
+          lead_id?: string | null
+          template_id?: string | null
+          public_url?: string | null
+          pdf_url?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          slug?: string | null
+          created_by: string
+          created_at?: string
+          action: 'created' | 'updated' | 'status_changed' | 'restored'
+          changes_summary?: Json | null
+        }
+        Update: {
+          id?: string
+          budget_id?: string
+          version_number?: number
+          title?: string
+          description?: string
+          amount?: number
+          status?: 'not_sent' | 'sent' | 'approved' | 'rejected'
+          assigned_to?: string
+          organization_id?: string
+          branch_id?: string
+          contact_id?: string | null
+          lead_id?: string | null
+          template_id?: string | null
+          public_url?: string | null
+          pdf_url?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          slug?: string | null
+          created_by?: string
+          created_at?: string
+          action?: 'created' | 'updated' | 'status_changed' | 'restored'
+          changes_summary?: Json | null
+        }
         Insert: {
           id?: string
           title: string
