@@ -19,6 +19,7 @@ import type { Budget } from '@/types';
 import type { Lead } from '@/types/supabase';
 import type { BudgetTemplate } from '@/types/budget-template';
 import { toast } from 'sonner';
+import { MarginControls, type MarginConfig, DEFAULT_MARGIN_CONFIG, marginConfigToStyles } from '@/components/budgets/MarginControls';
 
 interface BudgetFormProps {
   onSubmit: (data: Partial<Budget>) => Promise<void>;
@@ -42,6 +43,20 @@ export function BudgetForm({ onSubmit, onCancel, initialData, mode = 'modal', se
   );
   const [content, setContent] = useState(initialData?.description || '');
   const [selectedTemplate, setSelectedTemplate] = useState<string>(initialData?.template_id || '');
+  const [marginConfig, setMarginConfig] = useState<MarginConfig>(() => {
+    // Tratar de extraer configuración de márgenes del contenido existente o usar default
+    try {
+      if (initialData?.description) {
+        const marginMatch = initialData.description.match(/<!--MARGIN_CONFIG:(.+?)-->/);
+        if (marginMatch) {
+          return JSON.parse(marginMatch[1]);
+        }
+      }
+    } catch (error) {
+      console.warn('Error parsing margin config:', error);
+    }
+    return DEFAULT_MARGIN_CONFIG;
+  });
   const [isSaving, setIsSaving] = useState(false);
   const { currentOrganization, currentBranch, user } = useAuth();
   const { contacts } = useContacts(currentOrganization?.id, currentBranch?.id);
@@ -112,9 +127,12 @@ export function BudgetForm({ onSubmit, onCancel, initialData, mode = 'modal', se
       if (mode === 'modal') {
         await onSubmit(baseData);
       } else {
+        // Incluir configuración de márgenes en el contenido
+        const contentWithMargins = `<!--MARGIN_CONFIG:${JSON.stringify(marginConfig)}-->\n${content}`;
+        
         await onSubmit({
           ...baseData,
-          description: content,
+          description: contentWithMargins,
           status: 'not_sent',
           organization_id: currentOrganization?.id || '',
           branch_id: currentBranch?.id || '',
@@ -166,25 +184,41 @@ export function BudgetForm({ onSubmit, onCancel, initialData, mode = 'modal', se
           </div>
         </div>
         <div className="flex-1 overflow-hidden bg-gray-50 p-4">
-          <div className="h-full max-w-[1200px] mx-auto bg-white shadow-lg">
-            <ReactQuill
-              theme="snow"
-              value={content}
-              onChange={setContent}
-              style={{ height: 'calc(100vh - 180px)' }}
-              modules={{
-                toolbar: [
-                  [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
-                  ['bold', 'italic', 'underline', 'strike'],
-                  [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                  [{ 'indent': '-1'}, { 'indent': '+1' }],
-                  [{ 'color': [] }, { 'background': [] }],
-                  [{ 'align': [] }],
-                  ['link', 'image'],
-                  ['clean']
-                ],
-              }}
-            />
+          <div className="h-full flex gap-4">
+            {/* Panel de controles lateral */}
+            <div className="w-80 flex flex-col space-y-4">
+              <MarginControls 
+                config={marginConfig}
+                onChange={setMarginConfig}
+              />
+            </div>
+            
+            {/* Editor principal */}
+            <div className="flex-1 bg-white shadow-lg">
+              <div 
+                className="h-full"
+                style={marginConfigToStyles(marginConfig)}
+              >
+                <ReactQuill
+                  theme="snow"
+                  value={content}
+                  onChange={setContent}
+                  style={{ height: 'calc(100vh - 180px)' }}
+                  modules={{
+                    toolbar: [
+                      [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+                      ['bold', 'italic', 'underline', 'strike'],
+                      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                      [{ 'indent': '-1'}, { 'indent': '+1' }],
+                      [{ 'color': [] }, { 'background': [] }],
+                      [{ 'align': [] }],
+                      ['link', 'image'],
+                      ['clean']
+                    ],
+                  }}
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>

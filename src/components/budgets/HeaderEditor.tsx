@@ -104,8 +104,8 @@ export function HeaderEditor({ config, onChange }: HeaderEditorProps) {
                     id="logo-upload"
                   />
                   <label htmlFor="logo-upload">
-                    <Button type="button" variant="outline" className="cursor-pointer">
-                      {logoPreview ? 'Cambiar logo' : 'Subir logo'}
+                    <Button asChild variant="outline" className="cursor-pointer">
+                      <span>{logoPreview ? 'Cambiar logo' : 'Subir logo'}</span>
                     </Button>
                   </label>
                   <p className="text-xs text-gray-500 mt-1">PNG, JPG hasta 2MB</p>

@@ -3,11 +3,36 @@ import { useParams } from 'react-router-dom';
 import { createClient } from '@/lib/supabase/client';
 import type { Budget } from '@/types';
 import type { BudgetTemplate } from '@/types/budget-template';
+import type { MarginConfig } from '@/components/budgets/MarginControls';
+import { DEFAULT_MARGIN_CONFIG, marginConfigToStyles } from '@/components/budgets/MarginControls';
 
 interface PublicBudgetData extends Budget {
   contacts?: { full_name: string; email: string; phone: string };
   leads?: { full_name: string; email: string; phone: string };
   template?: BudgetTemplate;
+}
+
+// Helper function para extraer configuración de márgenes y limpiar contenido
+function extractMarginConfigAndContent(description: string | null): { 
+  marginConfig: MarginConfig; 
+  cleanContent: string;
+} {
+  if (!description) {
+    return { marginConfig: DEFAULT_MARGIN_CONFIG, cleanContent: '' };
+  }
+
+  try {
+    const marginMatch = description.match(/<!--MARGIN_CONFIG:(.+?)-->\n?/);
+    if (marginMatch) {
+      const marginConfig = JSON.parse(marginMatch[1]);
+      const cleanContent = description.replace(/<!--MARGIN_CONFIG:(.+?)-->\n?/, '');
+      return { marginConfig, cleanContent };
+    }
+  } catch (error) {
+    console.warn('Error parsing margin config:', error);
+  }
+
+  return { marginConfig: DEFAULT_MARGIN_CONFIG, cleanContent: description };
 }
 
 export function PublicBudgetPage() {
@@ -224,10 +249,16 @@ export function PublicBudgetPage() {
 
         {/* Contenido del presupuesto */}
         <div className="px-6 py-6">
-          <div 
-            className="prose max-w-none"
-            dangerouslySetInnerHTML={{ __html: budget.description }}
-          />
+          {(() => {
+            const { marginConfig, cleanContent } = extractMarginConfigAndContent(budget.description);
+            return (
+              <div 
+                className="prose max-w-none"
+                style={marginConfigToStyles(marginConfig)}
+                dangerouslySetInnerHTML={{ __html: cleanContent }}
+              />
+            );
+          })()}
         </div>
 
         {/* Footer personalizado */}

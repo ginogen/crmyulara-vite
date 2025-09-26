@@ -32,6 +32,14 @@ export function BudgetPreview({ headerConfig, footerConfig, content, sampleData 
     }
   };
 
+  const getImageSizeClass = (size: string) => {
+    switch (size) {
+      case 'small': return 'h-8';
+      case 'large': return 'h-16';
+      default: return 'h-12';
+    }
+  };
+
   const getPaddingClass = (padding: string) => {
     switch (padding) {
       case 'small': return 'p-2';
@@ -177,6 +185,37 @@ export function BudgetPreview({ headerConfig, footerConfig, content, sampleData 
             <p className={getFontSizeClass(footerConfig.font_size)}>
               {footerConfig.text}
             </p>
+            
+            {/* Footer Images */}
+            {footerConfig.show_images && (footerConfig.image1_url || footerConfig.image2_url) && (
+              <div className="mt-4">
+                <div 
+                  className={`flex items-center justify-center ${
+                    footerConfig.images_layout === 'side-by-side' ? 'flex-row gap-4' :
+                    footerConfig.images_layout === 'stacked' ? 'flex-col gap-2' :
+                    'flex-row'
+                  }`}
+                >
+                  {/* Image 1 */}
+                  {(footerConfig.images_layout === 'side-by-side' || footerConfig.images_layout === 'stacked' || footerConfig.images_layout === 'image1-only') && footerConfig.image1_url && (
+                    <img
+                      src={footerConfig.image1_url}
+                      alt="Footer image 1"
+                      className={`${getImageSizeClass(footerConfig.image1_size)} w-auto`}
+                    />
+                  )}
+                  
+                  {/* Image 2 */}
+                  {(footerConfig.images_layout === 'side-by-side' || footerConfig.images_layout === 'stacked' || footerConfig.images_layout === 'image2-only') && footerConfig.image2_url && (
+                    <img
+                      src={footerConfig.image2_url}
+                      alt="Footer image 2"
+                      className={`${getImageSizeClass(footerConfig.image2_size)} w-auto`}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

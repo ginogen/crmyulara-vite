@@ -41,7 +41,7 @@ export function BudgetsPage() {
     currentOrganization?.id,
     currentBranch?.id
   );
-  const { processBudget, updateBudgetStatus, isLoading: isProcessing } = useBudgetActions();
+  const { processBudget, updateBudgetStatus, generatePublicUrlOnly, isLoading: isProcessing } = useBudgetActions();
 
   // Manejar navegación desde la página de leads
   useEffect(() => {
@@ -161,6 +161,16 @@ export function BudgetsPage() {
     setIsEditorOpen(false);
     setBudgetData(null);
     setEditingBudget(null);
+  };
+
+  const handleGeneratePublicUrl = async (budget: Budget) => {
+    try {
+      await generatePublicUrlOnly.mutateAsync(budget);
+      toast.success('Enlace público generado exitosamente');
+    } catch (error) {
+      console.error('Error al generar el enlace público:', error);
+      toast.error('Error al generar el enlace público');
+    }
   };
 
   const handleDownloadPDF = async (pdfUrl: string, budgetTitle: string) => {
@@ -323,7 +333,7 @@ export function BudgetsPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => window.open(budget.public_url, '_blank')}
+                          onClick={() => budget.public_url && window.open(budget.public_url, '_blank')}
                           className="text-blue-600 hover:text-blue-800"
                         >
                           VER
@@ -355,6 +365,13 @@ export function BudgetsPage() {
                           >
                             Duplicar
                           </DropdownMenuItem>
+                          {budget.slug && !budget.public_url && (
+                            <DropdownMenuItem
+                              onClick={() => handleGeneratePublicUrl(budget)}
+                            >
+                              Generar Enlace
+                            </DropdownMenuItem>
+                          )}
                           {budget.public_url && (
                             <DropdownMenuItem
                               onClick={() => {

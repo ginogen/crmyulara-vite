@@ -21,6 +21,15 @@ export interface FooterConfig {
   alignment: 'left' | 'center' | 'right';
   font_size: 'small' | 'medium' | 'large';
   padding: 'small' | 'medium' | 'large';
+  // Configuración de imágenes
+  show_images: boolean;
+  image1_url: string | null;
+  image1_size: 'small' | 'medium' | 'large';
+  show_image1: boolean;
+  image2_url: string | null;
+  image2_size: 'small' | 'medium' | 'large';
+  show_image2: boolean;
+  images_layout: 'side-by-side' | 'stacked' | 'image1-only' | 'image2-only';
 }
 
 export interface BudgetTemplate {
@@ -76,5 +85,14 @@ export const DEFAULT_FOOTER_CONFIG: FooterConfig = {
   text_color: '#6b7280',
   alignment: 'center',
   font_size: 'medium',
-  padding: 'medium'
+  padding: 'medium',
+  // Configuración de imágenes
+  show_images: false,
+  image1_url: null,
+  image1_size: 'medium',
+  show_image1: true,
+  image2_url: null,
+  image2_size: 'medium',
+  show_image2: true,
+  images_layout: 'side-by-side'
 };

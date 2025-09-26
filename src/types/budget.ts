@@ -4,7 +4,7 @@ export interface Budget {
   id: string;
   created_at: string;
   title: string;
-  description: string;
+  description: string | null;
   amount: number;
   status: 'not_sent' | 'sent' | 'approved' | 'rejected';
   assigned_to: string;
@@ -17,4 +17,5 @@ export interface Budget {
   pdf_url: string | null;
   sent_at: string | null;
   sent_by: string | null;
+  slug: string | null;
 } 

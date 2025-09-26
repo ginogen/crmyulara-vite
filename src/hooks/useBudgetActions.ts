@@ -11,26 +11,30 @@ export function useBudgetActions() {
   const supabase = createClient();
   const queryClient = useQueryClient();
 
-  const generatePublicUrl = async (budgetId: string, contactName?: string, leadName?: string, budgetTitle?: string) => {
-    // Generar slug basado en el nombre del contacto/lead
-    const baseSlug = generateBudgetSlug(contactName, leadName, budgetTitle);
+  const generatePublicUrl = async (budgetId: string, existingSlug?: string, contactName?: string, leadName?: string, budgetTitle?: string) => {
+    let slug = existingSlug;
     
-    // Verificar que el slug sea único
-    const { data: existingBudgets } = await supabase
-      .from('budgets')
-      .select('public_url')
-      .like('public_url', `%/budgets/public/${baseSlug}%`);
+    // Si no hay slug existente, generar uno nuevo
+    if (!slug) {
+      const baseSlug = generateBudgetSlug(contactName, leadName, budgetTitle);
+      
+      const { data: existingBudgets } = await supabase
+        .from('budgets')
+        .select('slug')
+        .like('slug', `${baseSlug}%`);
+      
+      const existingSlugs = existingBudgets?.map(b => b.slug).filter(Boolean) || [];
+      slug = generateUniqueSlug(baseSlug, existingSlugs);
+    }
     
-    const existingSlugs = existingBudgets?.map(b => 
-      b.public_url?.split('/').pop() || ''
-    ).filter(Boolean) || [];
-    
-    const uniqueSlug = generateUniqueSlug(baseSlug, existingSlugs);
-    const publicUrl = `${window.location.origin}/budgets/public/${uniqueSlug}`;
+    const publicUrl = `${window.location.origin}/budgets/public/${slug}`;
     
     const { error } = await supabase
       .from('budgets')
-      .update({ public_url: publicUrl })
+      .update({ 
+        public_url: publicUrl,
+        ...(existingSlug ? {} : { slug }) // Solo actualizar slug si no existía
+      })
       .eq('id', budgetId);
 
     if (error) throw error;
@@ -47,10 +51,10 @@ export function useBudgetActions() {
     document.body.appendChild(iframe);
 
     try {
-      // Obtener el slug del public_url
-      const slug = budget.public_url?.split('/').pop();
+      // Usar el slug guardado en la base de datos
+      const slug = budget.slug;
       if (!slug) {
-        throw new Error('No se pudo obtener el slug del presupuesto');
+        throw new Error('El presupuesto no tiene slug asignado');
       }
 
       // Cargar la página pública en el iframe
@@ -167,7 +171,7 @@ export function useBudgetActions() {
         leadName = lead?.full_name;
       }
       
-      const publicUrl = await generatePublicUrl(budget.id, contactName, leadName, budget.title);
+      const publicUrl = await generatePublicUrl(budget.id, budget.slug, contactName, leadName, budget.title);
       const pdfUrl = await generatePDF(budget);
       
       return { publicUrl, pdfUrl };
@@ -179,9 +183,31 @@ export function useBudgetActions() {
     }
   };
 
+  const generatePublicUrlOnly = useMutation({
+    mutationFn: async (budget: Budget) => {
+      if (!budget.slug) {
+        throw new Error('El presupuesto no tiene slug asignado');
+      }
+
+      const publicUrl = `${window.location.origin}/budgets/public/${budget.slug}`;
+      
+      const { error } = await supabase
+        .from('budgets')
+        .update({ public_url: publicUrl })
+        .eq('id', budget.id);
+
+      if (error) throw error;
+      return publicUrl;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
+    },
+  });
+
   return {
     processBudget,
     updateBudgetStatus,
+    generatePublicUrlOnly,
     isLoading
   };
 } 

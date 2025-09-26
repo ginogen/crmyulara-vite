@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { generateBudgetSlug, generateUniqueSlug } from '@/lib/utils/slug';
 import type { Database } from '@/lib/supabase/database.types';
 
 type Budget = Database['public']['Tables']['budgets']['Row'];
@@ -56,6 +57,43 @@ export function useBudgets(organizationId?: string, branchId?: string) {
 
   const createBudget = useMutation({
     mutationFn: async (budget: Partial<Budget>) => {
+      // Generar slug si no se proporciona
+      if (!budget.slug) {
+        // Obtener datos para generar el slug
+        let contactName: string | undefined;
+        let leadName: string | undefined;
+        
+        if (budget.contact_id) {
+          const { data: contact } = await supabase
+            .from('contacts')
+            .select('full_name')
+            .eq('id', budget.contact_id)
+            .single();
+          contactName = contact?.full_name;
+        }
+        
+        if (budget.lead_id) {
+          const { data: lead } = await supabase
+            .from('leads')
+            .select('full_name')
+            .eq('id', budget.lead_id)
+            .single();
+          leadName = lead?.full_name;
+        }
+        
+        // Generar slug base
+        const baseSlug = generateBudgetSlug(contactName, leadName, budget.title);
+        
+        // Verificar unicidad
+        const { data: existingSlugs } = await supabase
+          .from('budgets')
+          .select('slug')
+          .like('slug', `${baseSlug}%`);
+        
+        const existingSlugValues = existingSlugs?.map(b => b.slug).filter(Boolean) || [];
+        budget.slug = generateUniqueSlug(baseSlug, existingSlugValues);
+      }
+      
       // El trigger de la base de datos se encarga de crear el historial automáticamente
       const { data, error } = await supabase
         .from('budgets')
