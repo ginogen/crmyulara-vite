@@ -28,7 +28,6 @@ export default defineConfig({
             '@fullcalendar/daygrid',
             '@fullcalendar/timegrid',
             '@fullcalendar/interaction',
-            '@fullcalendar/list'
           ],
           'vendor-charts': ['recharts'],
           'radix-ui': [

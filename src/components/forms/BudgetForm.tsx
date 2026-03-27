@@ -292,8 +292,7 @@ export function BudgetForm({ onSubmit, onCancel, initialData, mode = 'modal', se
             Asociar con Contacto o Lead (Opcional)
           </label>
           <ReactSelect
-            options={allOptions}
-            value={allOptions.find(opt => 
+            value={allOptions.find(opt =>
               opt.value === selectedContact || opt.value === selectedLeadId
             ) || null}
             onChange={(option) => {
