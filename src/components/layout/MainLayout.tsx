@@ -8,9 +8,10 @@ import { Toaster } from 'sonner';
 
 interface MainLayoutProps {
   children: React.ReactNode;
+  fullHeight?: boolean;
 }
 
-export function MainLayout({ children }: MainLayoutProps) {
+export function MainLayout({ children, fullHeight }: MainLayoutProps) {
   const { user } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -23,7 +24,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className={`flex ${fullHeight ? 'h-screen overflow-hidden' : 'min-h-screen'} bg-gray-50`}>
       {/* Sidebar */}
       <Sidebar
         userRole={(user?.role as UserRole) || 'sales_agent'}
@@ -31,11 +32,11 @@ export function MainLayout({ children }: MainLayoutProps) {
         userName={user?.user_metadata?.name || ''}
         onToggleCollapse={handleSidebarToggle}
       />
-      
+
       {/* Contenido principal */}
       <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-48'}`}>
         <Topbar />
-        <main className="flex-1 overflow-auto p-4">
+        <main className={fullHeight ? 'flex-1 overflow-hidden p-4' : 'flex-1 overflow-auto p-4'}>
           {children}
         </main>
       </div>

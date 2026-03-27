@@ -12,6 +12,8 @@ import {
   ChevronRightIcon,
   ArrowRightOnRectangleIcon,
   ClipboardDocumentListIcon,
+  InboxIcon,
+  DevicePhoneMobileIcon,
 } from '@heroicons/react/24/outline';
 import { clsx } from '@/lib/utils';
 
@@ -36,6 +38,8 @@ export default function Sidebar({ userRole, userEmail, userName, userProfilePic,
     { name: 'Contactos', href: '/contacts', icon: UserGroupIcon },
     { name: 'Leads', href: '/leads', icon: UserPlusIcon },
     { name: 'Presupuestos', href: '/budgets', icon: DocumentTextIcon },
+    { name: 'Inbox', href: '/inbox', icon: InboxIcon },
+    { name: 'WhatsApp', href: '/inbox/numbers', icon: DevicePhoneMobileIcon },
     ...(userRole === 'super_admin' || userRole === 'org_admin'
       ? [{ name: 'Reglas', href: '/rules', icon: ClipboardDocumentListIcon }]
       : []),
@@ -103,7 +107,9 @@ export default function Sidebar({ userRole, userEmail, userName, userProfilePic,
       <div className="flex flex-col flex-grow overflow-y-auto">
         <div className="space-y-2 px-2 py-2">
           {navigation.map((item) => {
-            const isActive = location.pathname === item.href;
+            const isActive = item.href === '/inbox'
+              ? location.pathname === '/inbox'
+              : location.pathname === item.href || location.pathname.startsWith(item.href + '/');
             
             return (
               <Link

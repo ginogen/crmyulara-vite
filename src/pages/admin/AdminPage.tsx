@@ -1,6 +1,11 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Breadcrumb } from '@/components/ui/Breadcrumb';
 import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { createClient } from '@/lib/supabase/client';
+import { toast } from 'sonner';
 
 type UserRole = 'super_admin' | 'org_admin' | 'branch_manager' | 'sales_agent';
 
@@ -88,7 +93,43 @@ const IconComponent = ({ icon }: { icon: string }) => {
 };
 
 export function AdminPage() {
-  const { userRole } = useAuth();
+  const { userRole, currentOrganization } = useAuth();
+  const [wasenderToken, setWasenderToken] = useState('');
+  const [isSavingToken, setIsSavingToken] = useState(false);
+
+  const isAdmin = userRole === 'super_admin' || userRole === 'org_admin';
+
+  useEffect(() => {
+    if (!isAdmin || !currentOrganization?.id) return;
+    const supabase = createClient();
+    supabase
+      .from('organization_wasender_tokens')
+      .select('wasender_personal_token')
+      .eq('organization_id', currentOrganization.id)
+      .single()
+      .then(({ data }) => {
+        if (data?.wasender_personal_token) setWasenderToken(data.wasender_personal_token);
+      });
+  }, [isAdmin, currentOrganization?.id]);
+
+  const handleSaveWasenderToken = async () => {
+    if (!currentOrganization?.id || !wasenderToken.trim()) return;
+    setIsSavingToken(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('organization_wasender_tokens')
+      .upsert({
+        organization_id: currentOrganization.id,
+        wasender_personal_token: wasenderToken.trim(),
+        updated_at: new Date().toISOString(),
+      });
+    setIsSavingToken(false);
+    if (!error) {
+      toast.success('Token de Wasender guardado');
+    } else {
+      toast.error('Error al guardar el token');
+    }
+  };
 
   // Filtrar módulos según el rol del usuario
   const availableModules = modules.filter((module) => {
@@ -145,6 +186,40 @@ export function AdminPage() {
             </Link>
           ))}
         </div>
+
+        {isAdmin && (
+          <div className="bg-white rounded-lg p-6 space-y-4 max-w-lg">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Integración WhatsApp / Wasender</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Token de la organización para conectar números de WhatsApp via Wasender API.
+                Obtenlo en{' '}
+                <a
+                  href="https://www.wasenderapi.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline text-blue-600"
+                >
+                  wasenderapi.com
+                </a>
+                {' '}→ API Settings. Este token es compartido por todos los usuarios de la organización.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Personal Access Token</label>
+              <Input
+                type="password"
+                value={wasenderToken}
+                onChange={(e) => setWasenderToken(e.target.value)}
+                placeholder="wsa_..."
+                className="mt-1 font-mono"
+              />
+            </div>
+            <Button onClick={handleSaveWasenderToken} disabled={isSavingToken || !wasenderToken.trim()}>
+              {isSavingToken ? 'Guardando...' : 'Guardar Token'}
+            </Button>
+          </div>
+        )}
       </div>
     </>
   );

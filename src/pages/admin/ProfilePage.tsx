@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Breadcrumb } from '@/components/ui/Breadcrumb';
 import { createClient } from '@/lib/supabase/client';
+import { toast } from 'sonner';
 
 export function ProfilePage() {
   const { user } = useAuth();
@@ -13,7 +14,6 @@ export function ProfilePage() {
   const [orgName, setOrgName] = useState('');
   const [branchName, setBranchName] = useState('');
   const [fullName, setFullName] = useState('');
-
   useEffect(() => {
     const fetchProfile = async () => {
       if (!user) return;
@@ -55,16 +55,15 @@ export function ProfilePage() {
     if (!profile) return;
     setIsSaving(true);
     const supabase = createClient();
-    // Actualizar solo el nombre completo
     const { error } = await supabase
       .from('users')
       .update({ full_name: fullName })
       .eq('id', profile.id);
     setIsSaving(false);
     if (!error) {
-      alert('Perfil actualizado');
+      toast.success('Perfil actualizado');
     } else {
-      alert('Error al actualizar el perfil');
+      toast.error('Error al actualizar el perfil');
     }
   };
 
@@ -127,6 +126,7 @@ export function ProfilePage() {
           {isSaving ? 'Guardando...' : 'Guardar Cambios'}
         </Button>
       </div>
+
     </div>
   );
 }

@@ -73,7 +73,29 @@ export function useLeads(organizationId?: string, branchId?: string, options?: L
 
       if (matches && rule.assigned_users.length > 0) {
         // Seleccionar un usuario aleatorio de los asignados a la regla
-        return getRandomUser(rule.assigned_users);
+        const assignedUserId = getRandomUser(rule.assigned_users);
+
+        // Obtener nombre del usuario asignado para el log
+        const { data: userData } = await supabase
+          .from('users')
+          .select('full_name')
+          .eq('id', assignedUserId)
+          .single();
+
+        await supabase.from('rule_executions').insert({
+          rule_id: rule.id,
+          lead_id: lead.id,
+          organization_id: lead.organization_id,
+          rule_type: rule.type,
+          rule_condition: rule.condition,
+          matched_value: rule.type === 'campaign' ? lead.origin : lead.province,
+          assigned_user_id: assignedUserId,
+          assigned_user_name: userData?.full_name ?? null,
+          lead_name: lead.full_name,
+          lead_inquiry_number: (lead as any).inquiry_number ?? null,
+        });
+
+        return assignedUserId;
       }
     }
 

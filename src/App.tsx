@@ -21,12 +21,14 @@ const BranchesPage = lazy(() => import('@/pages/admin/BranchesPage').then(m => (
 const UsersPage = lazy(() => import('@/pages/admin/UsersPage').then(m => ({ default: m.UsersPage })));
 const ProfilePage = lazy(() => import('@/pages/admin/ProfilePage').then(m => ({ default: m.ProfilePage })));
 const RulesPage = lazy(() => import('@/pages/rules').then(m => ({ default: m.RulesPage })));
+const InboxPage = lazy(() => import('@/pages/inbox/InboxPage'));
+const WhatsAppNumbersPage = lazy(() => import('@/pages/inbox/WhatsAppNumbersPage'));
 
 // Componentes de error
 import { NotFoundPage } from '@/pages/error/NotFoundPage';
 import { LoadingPage } from '@/pages/error/LoadingPage';
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function ProtectedRoute({ children, fullHeight }: { children: React.ReactNode; fullHeight?: boolean }) {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -38,7 +40,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <MainLayout>
+    <MainLayout fullHeight={fullHeight}>
       <Suspense fallback={<LoadingPage />}>
         {children}
       </Suspense>
@@ -149,6 +151,23 @@ const App = () => {
           element={
             <ProtectedRoute>
               <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/inbox"
+          element={
+            <ProtectedRoute fullHeight>
+              <InboxPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inbox/numbers"
+          element={
+            <ProtectedRoute>
+              <WhatsAppNumbersPage />
             </ProtectedRoute>
           }
         />

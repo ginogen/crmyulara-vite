@@ -5,7 +5,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { RuleModal } from '@/components/modals/RuleModal';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { useRuleExecutions } from '@/hooks/useRuleExecutions';
 
 export function RulesPage() {
   const { currentOrganization, userRole } = useAuth();
@@ -15,6 +17,8 @@ export function RulesPage() {
   const [agents, setAgents] = useState<Array<{ id: string; full_name: string }>>([]);
   const [isLoading, setIsLoading] = useState(true);
   const supabase = createClient();
+
+  const { data: executions = [], isLoading: executionsLoading } = useRuleExecutions(currentOrganization?.id);
 
   // Verificar si el usuario tiene acceso
   if (!['super_admin', 'org_admin'].includes(userRole || '')) {
@@ -100,7 +104,7 @@ export function RulesPage() {
 
       if (error) throw error;
 
-      setRules(prev => prev.map(rule => 
+      setRules(prev => prev.map(rule =>
         rule.id === selectedRule.id ? { ...rule, ...ruleData } : rule
       ));
       toast.success('Regla actualizada exitosamente');
@@ -142,90 +146,182 @@ export function RulesPage() {
           </Button>
         </div>
 
-        {isLoading ? (
-          <div className="flex justify-center items-center h-32">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-          </div>
-        ) : rules.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-lg shadow">
-            <p className="text-gray-500">No hay reglas configuradas.</p>
-          </div>
-        ) : (
-          <div className="bg-white shadow rounded-lg overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tipo
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Condición
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Usuarios Asignados
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Estado
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {rules.map((rule) => (
-                  <tr key={rule.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {rule.type === 'campaign' ? 'Por Campaña' : 'Por Provincia'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {rule.condition}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <div className="flex flex-wrap gap-1">
-                        {rule.assigned_users.map(userId => {
-                          const agent = agents.find(a => a.id === userId);
-                          return agent ? (
-                            <Badge key={userId} variant="secondary" className="text-xs">
-                              {agent.full_name}
-                            </Badge>
-                          ) : null;
-                        })}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <Badge
-                        variant={rule.is_active ? "success" : "secondary"}
-                        className="text-xs"
-                      >
-                        {rule.is_active ? 'Activa' : 'Inactiva'}
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <Button
-                        variant="ghost"
-                        className="text-blue-600 hover:text-blue-900 mr-2"
-                        onClick={() => {
-                          setSelectedRule(rule);
-                          setIsModalOpen(true);
-                        }}
-                      >
-                        Editar
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="text-red-600 hover:text-red-900"
-                        onClick={() => handleDeleteRule(rule.id)}
-                      >
-                        Eliminar
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <Tabs defaultValue="rules">
+          <TabsList className="mb-4">
+            <TabsTrigger value="rules">Reglas</TabsTrigger>
+            <TabsTrigger value="history">Historial de Ejecuciones</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="rules">
+            {isLoading ? (
+              <div className="flex justify-center items-center h-32">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+              </div>
+            ) : rules.length === 0 ? (
+              <div className="text-center py-12 bg-white rounded-lg shadow">
+                <p className="text-gray-500">No hay reglas configuradas.</p>
+              </div>
+            ) : (
+              <div className="bg-white shadow rounded-lg overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Tipo
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Condición
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Usuarios Asignados
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Estado
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {rules.map((rule) => (
+                      <tr key={rule.id}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {rule.type === 'campaign' ? 'Por Campaña' : 'Por Provincia'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {rule.condition}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <div className="flex flex-wrap gap-1">
+                            {rule.assigned_users.map(userId => {
+                              const agent = agents.find(a => a.id === userId);
+                              return agent ? (
+                                <Badge key={userId} variant="secondary" className="text-xs">
+                                  {agent.full_name}
+                                </Badge>
+                              ) : null;
+                            })}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Badge
+                            variant={rule.is_active ? "success" : "secondary"}
+                            className="text-xs"
+                          >
+                            {rule.is_active ? 'Activa' : 'Inactiva'}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <Button
+                            variant="ghost"
+                            className="text-blue-600 hover:text-blue-900 mr-2"
+                            onClick={() => {
+                              setSelectedRule(rule);
+                              setIsModalOpen(true);
+                            }}
+                          >
+                            Editar
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            className="text-red-600 hover:text-red-900"
+                            onClick={() => handleDeleteRule(rule.id)}
+                          >
+                            Eliminar
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="history">
+            {executionsLoading ? (
+              <div className="flex justify-center items-center h-32">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+              </div>
+            ) : executions.length === 0 ? (
+              <div className="text-center py-12 bg-white rounded-lg shadow">
+                <p className="text-gray-500">No hay ejecuciones registradas aún.</p>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-gray-500 mb-2">
+                  Mostrando las últimas {executions.length} ejecuciones.
+                </p>
+                <div className="bg-white shadow rounded-lg overflow-hidden">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Fecha y hora
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Lead
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Nro. Consulta
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Regla
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Valor coincidente
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Usuario asignado
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {executions.map((exec) => {
+                        const date = new Date(exec.created_at);
+                        const formatted = date.toLocaleDateString('es-AR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                        }) + ' ' + date.toLocaleTimeString('es-AR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        });
+                        return (
+                          <tr key={exec.id}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {formatted}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {exec.lead_name ?? '—'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {exec.lead_inquiry_number ?? '—'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              <Badge
+                                variant={exec.rule_type === 'campaign' ? 'default' : 'secondary'}
+                                className="text-xs"
+                              >
+                                {exec.rule_type === 'campaign' ? 'Por Campaña' : 'Por Provincia'}: "{exec.rule_condition}"
+                              </Badge>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {exec.matched_value}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {exec.assigned_user_name ?? '—'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
 
       <RuleModal
@@ -240,4 +336,4 @@ export function RulesPage() {
       />
     </div>
   );
-} 
+}

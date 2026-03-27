@@ -81,6 +81,64 @@ function extractField(data: any, ...possibleFieldNames: string[]): string | unde
   return undefined;
 }
 
+// Aplica reglas de asignación automática para leads entrantes por webhook
+async function applyRulesForWebhook(
+  supabase: ReturnType<typeof createClient>,
+  lead: {
+    organization_id: string;
+    origin: string;
+    province: string;
+    lead_id: string | null;
+    lead_name: string;
+    inquiry_number: string;
+  }
+): Promise<string | null> {
+  const { data: rules, error } = await supabase
+    .from('rules')
+    .select('*')
+    .eq('organization_id', lead.organization_id)
+    .eq('is_active', true);
+
+  if (error || !rules) return null;
+
+  for (const rule of rules) {
+    let matches = false;
+
+    if (rule.type === 'campaign' && lead.origin) {
+      matches = lead.origin.toLowerCase().includes(rule.condition.toLowerCase());
+    } else if (rule.type === 'province' && lead.province) {
+      matches = lead.province.toLowerCase() === rule.condition.toLowerCase();
+    }
+
+    if (matches && rule.assigned_users.length > 0) {
+      const assignedUserId = rule.assigned_users[Math.floor(Math.random() * rule.assigned_users.length)];
+
+      const { data: userData } = await supabase
+        .from('users')
+        .select('full_name')
+        .eq('id', assignedUserId)
+        .single();
+
+      await supabase.from('rule_executions').insert({
+        rule_id: rule.id,
+        lead_id: lead.lead_id,
+        organization_id: lead.organization_id,
+        rule_type: rule.type,
+        rule_condition: rule.condition,
+        matched_value: rule.type === 'campaign' ? lead.origin : lead.province,
+        assigned_user_id: assignedUserId,
+        assigned_user_name: userData?.full_name ?? null,
+        lead_name: lead.lead_name,
+        lead_inquiry_number: lead.inquiry_number ?? null,
+      });
+
+      return assignedUserId;
+    }
+  }
+
+  return null;
+}
+
 // Función para verificar si un error es retryable
 function isRetryableError(error: any): boolean {
   // Errores de red que pueden ser temporales
@@ -353,7 +411,19 @@ export const handler: Handler = async (event) => {
         
         const travelDate = extractField(leadData, 'estimated_travel_date', 'travel_date', 'date') || 'No especificada';
         const origin = extractField(leadData, 'origin') || 'Facebook Ads';
-        const assignedToUserId = data.assigned_to || null;
+        let assignedToUserId = data.assigned_to || null;
+
+        // Si no hay asignación explícita, aplicar reglas
+        if (!assignedToUserId) {
+          assignedToUserId = await applyRulesForWebhook(supabase, {
+            organization_id: data.organization_id,
+            origin,
+            province,
+            lead_id: null,
+            lead_name: fullName,
+            inquiry_number: inquiryNumber,
+          });
+        }
 
         console.log(`[${requestId}] Datos procesados para el lead:`, {
           fullName,
