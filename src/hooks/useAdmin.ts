@@ -50,7 +50,7 @@ export function useAdmin() {
     }
 
     fetchData();
-  }, [supabase]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateUser = async (userId: string, data: Partial<User>) => {
     try {

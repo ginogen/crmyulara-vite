@@ -15,10 +15,22 @@ export default defineConfig({
     extensions: ['.js', '.jsx', '.ts', '.tsx', '.json']
   },
   build: {
-    sourcemap: true,
+    target: 'esnext',
+    sourcemap: 'hidden',
     rollupOptions: {
       output: {
         manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-mui': ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled'],
+          'vendor-fullcalendar': [
+            '@fullcalendar/core',
+            '@fullcalendar/react',
+            '@fullcalendar/daygrid',
+            '@fullcalendar/timegrid',
+            '@fullcalendar/interaction',
+            '@fullcalendar/list'
+          ],
+          'vendor-charts': ['recharts'],
           'radix-ui': [
             '@radix-ui/react-select',
             '@radix-ui/react-dialog',
@@ -35,7 +47,29 @@ export default defineConfig({
       },
     },
   },
+  esbuild: {
+    drop: ['debugger'],
+  },
   optimizeDeps: {
-    include: ['@radix-ui/react-select', '@radix-ui/react-dialog', '@radix-ui/react-label', '@radix-ui/react-separator', '@radix-ui/react-slot', '@radix-ui/react-tabs', '@radix-ui/react-avatar', '@radix-ui/react-checkbox', '@radix-ui/react-dropdown-menu', '@radix-ui/react-popover']
+    include: [
+      'react',
+      'react-dom',
+      'react-router-dom',
+      '@mui/material',
+      '@mui/icons-material',
+      '@emotion/react',
+      '@emotion/styled',
+      'recharts',
+      '@radix-ui/react-select',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-label',
+      '@radix-ui/react-separator',
+      '@radix-ui/react-slot',
+      '@radix-ui/react-tabs',
+      '@radix-ui/react-avatar',
+      '@radix-ui/react-checkbox',
+      '@radix-ui/react-dropdown-menu',
+      '@radix-ui/react-popover'
+    ]
   }
 })

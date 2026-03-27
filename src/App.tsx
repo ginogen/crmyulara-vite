@@ -1,25 +1,26 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { InactivityHandler } from '@/components/InactivityHandler';
 
-// Páginas públicas
+// Páginas públicas (carga inmediata — pequeñas)
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
 
-// Páginas protegidas
-import DashboardPage from '@/pages/dashboard/DashboardPage';
-import { ContactsPage } from '@/pages/contacts/ContactsPage';
-import { LeadsPage } from '@/pages/leads/index';
-import { BudgetsPage } from '@/pages/budgets/BudgetsPage';
-import { BudgetTemplatesPage } from '@/pages/budgets/BudgetTemplatesPage';
-import { PublicBudgetPage } from '@/pages/budgets/PublicBudgetPage';
-import { AdminPage } from '@/pages/admin/AdminPage';
-import { OrganizationsPage } from '@/pages/admin/OrganizationsPage';
-import { BranchesPage } from '@/pages/admin/BranchesPage';
-import { UsersPage } from '@/pages/admin/UsersPage';
-import { ProfilePage } from '@/pages/admin/ProfilePage';
-import { RulesPage } from '@/pages/rules';
+// Páginas con carga diferida
+const DashboardPage = lazy(() => import('@/pages/dashboard/DashboardPage'));
+const ContactsPage = lazy(() => import('@/pages/contacts/ContactsPage').then(m => ({ default: m.ContactsPage })));
+const LeadsPage = lazy(() => import('@/pages/leads/index').then(m => ({ default: m.LeadsPage })));
+const BudgetsPage = lazy(() => import('@/pages/budgets/BudgetsPage').then(m => ({ default: m.BudgetsPage })));
+const BudgetTemplatesPage = lazy(() => import('@/pages/budgets/BudgetTemplatesPage').then(m => ({ default: m.BudgetTemplatesPage })));
+const PublicBudgetPage = lazy(() => import('@/pages/budgets/PublicBudgetPage').then(m => ({ default: m.PublicBudgetPage })));
+const AdminPage = lazy(() => import('@/pages/admin/AdminPage').then(m => ({ default: m.AdminPage })));
+const OrganizationsPage = lazy(() => import('@/pages/admin/OrganizationsPage').then(m => ({ default: m.OrganizationsPage })));
+const BranchesPage = lazy(() => import('@/pages/admin/BranchesPage').then(m => ({ default: m.BranchesPage })));
+const UsersPage = lazy(() => import('@/pages/admin/UsersPage').then(m => ({ default: m.UsersPage })));
+const ProfilePage = lazy(() => import('@/pages/admin/ProfilePage').then(m => ({ default: m.ProfilePage })));
+const RulesPage = lazy(() => import('@/pages/rules').then(m => ({ default: m.RulesPage })));
 
 // Componentes de error
 import { NotFoundPage } from '@/pages/error/NotFoundPage';
@@ -36,7 +37,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/auth/login" />;
   }
 
-  return <MainLayout>{children}</MainLayout>;
+  return (
+    <MainLayout>
+      <Suspense fallback={<LoadingPage />}>
+        {children}
+      </Suspense>
+    </MainLayout>
+  );
 }
 
 const App = () => {
@@ -47,7 +54,14 @@ const App = () => {
         {/* Rutas públicas */}
         <Route path="/auth/login" element={<LoginPage />} />
         <Route path="/auth/register" element={<RegisterPage />} />
-        <Route path="/budgets/public/:slug" element={<PublicBudgetPage />} />
+        <Route
+          path="/budgets/public/:slug"
+          element={
+            <Suspense fallback={<LoadingPage />}>
+              <PublicBudgetPage />
+            </Suspense>
+          }
+        />
 
         {/* Rutas protegidas */}
         <Route

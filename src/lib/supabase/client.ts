@@ -7,8 +7,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
+let clientInstance: ReturnType<typeof createBrowserClient> | null = null;
+
 export const createClient = () => {
-  return createBrowserClient(supabaseUrl, supabaseAnonKey, {
+  if (clientInstance) return clientInstance;
+  clientInstance = createBrowserClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       autoRefreshToken: true,
       persistSession: true,
@@ -18,4 +21,5 @@ export const createClient = () => {
       flowType: 'pkce'
     }
   });
+  return clientInstance;
 }; 

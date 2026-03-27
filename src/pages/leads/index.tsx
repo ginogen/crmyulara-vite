@@ -300,13 +300,24 @@ export function LeadsPage() {
 
   const {
     leads,
+    totalCount,
     loading: isLoading,
     createLead: createLeadMutation,
     updateLead: updateLeadMutation,
     updateLeadStatus,
     updateLeadAssignment,
     deleteLead,
-  } = useLeads(currentOrganization?.id, currentBranch?.id);
+  } = useLeads(currentOrganization?.id, currentBranch?.id, {
+    filters,
+    page: currentPage,
+    pageSize: itemsPerPage,
+    activeTab,
+  });
+
+  // Resetear página al cambiar filtros o tab
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters, activeTab]);
 
   // Hook para presupuestos
   const { createBudget } = useBudgets(currentOrganization?.id, currentBranch?.id);
@@ -378,7 +389,6 @@ export function LeadsPage() {
         inquiry_number: inquiryNumber,
         organization_id: currentOrganization.id,
         branch_id: currentBranch.id,
-        assigned_to: user.id,
       });
       setIsModalOpen(false);
     } catch (error: any) {
@@ -616,27 +626,7 @@ export function LeadsPage() {
     }
   };
 
-  const filteredLeads = leads.filter((lead) => {
-    const isArchived = lead.status === 'archived';
-    if (activeTab === 'archivados') return isArchived;
-    // En activos, mostrar todos menos los archivados
-    return !isArchived && (
-      (filters.status === 'all' || !filters.status ? true : lead.status === filters.status) &&
-      (filters.assignedTo === 'all' || !filters.assignedTo ? true : lead.assigned_to === filters.assignedTo) &&
-      (filters.name ? lead.full_name.toLowerCase().includes(filters.name.toLowerCase()) : true) &&
-      (filters.email ? (lead.email || '').toLowerCase().includes(filters.email.toLowerCase()) : true) &&
-      (filters.phone ? formatPhoneNumber(lead.phone).includes(filters.phone) : true) &&
-      (filters.origin ? lead.origin.toLowerCase().includes(filters.origin.toLowerCase()) : true) &&
-      (filters.pax ? lead.pax_count.toString().includes(filters.pax) : true) &&
-      (filters.search ? lead.full_name.toLowerCase().includes(filters.search.toLowerCase()) || formatPhoneNumber(lead.phone).includes(filters.search) : true)
-    );
-  });
-
-  const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
-  const paginatedLeads = filteredLeads.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
 
   const handleFilterChange = (field: string, value: string) => {
     setFilters(prev => ({ ...prev, [field]: value }));
@@ -658,7 +648,7 @@ export function LeadsPage() {
 
   const handleBulkAssign = async (agentId: string) => {
     try {
-      const leadsToUpdate = selectAllLeads ? filteredLeads : selectedLeads;
+      const leadsToUpdate = selectAllLeads ? leads : selectedLeads;
       
       // Mostrar confirmación con el número de leads
       const confirmMessage = `¿Estás seguro de que deseas ${
@@ -884,8 +874,8 @@ export function LeadsPage() {
               />
             </div>
             <span className="text-sm text-blue-700 font-medium">
-              {selectAllLeads 
-                ? `Todos los leads (${filteredLeads.length}) seleccionados` 
+              {selectAllLeads
+                ? `Todos los leads (${totalCount}) seleccionados`
                 : `${selectedLeads.length} leads seleccionados`
               }
             </span>
@@ -951,7 +941,7 @@ export function LeadsPage() {
                   )}
                 </div>
                 <span className="text-xs font-medium text-gray-700">
-                  {filteredLeads.length} {filteredLeads.length === 1 ? 'lead' : 'leads'} encontrados
+                  {totalCount} {totalCount === 1 ? 'lead' : 'leads'} encontrados
                 </span>
               </div>
             </div>
@@ -1147,20 +1137,20 @@ export function LeadsPage() {
                   <div className="flex items-center gap-2">
                     <input
                       type="checkbox"
-                      checked={selectAllLeads || (selectedLeads.length === paginatedLeads.length && paginatedLeads.length > 0)}
+                      checked={selectAllLeads || (selectedLeads.length === leads.length && leads.length > 0)}
                       ref={checkbox => {
                         if (checkbox) {
-                          checkbox.indeterminate = selectedLeads.length > 0 && selectedLeads.length < paginatedLeads.length && !selectAllLeads;
+                          checkbox.indeterminate = selectedLeads.length > 0 && selectedLeads.length < leads.length && !selectAllLeads;
                         }
                       }}
                       onChange={e => {
                         if (e.target.checked) {
-                          if (selectedLeads.length === paginatedLeads.length) {
+                          if (selectedLeads.length === leads.length) {
                             // Si todos los leads de la página están seleccionados, activar selección total
                             setSelectAllLeads(true);
                           } else {
                             // Seleccionar solo los leads de la página actual
-                            setSelectedLeads(paginatedLeads);
+                            setSelectedLeads(leads);
                           }
                         } else {
                           setSelectAllLeads(false);
@@ -1203,14 +1193,14 @@ export function LeadsPage() {
                     </div>
                   </td>
                 </tr>
-              ) : filteredLeads.length === 0 ? (
+              ) : leads.length === 0 ? (
                 <tr>
                   <td colSpan={11} className="text-center py-4 text-xs text-gray-500">
                     No hay leads disponibles
                   </td>
                 </tr>
               ) : (
-                paginatedLeads.map((lead) => (
+                leads.map((lead) => (
                   <tr key={lead.id} className="hover:bg-gray-50">
                     <td className="px-2 py-2 whitespace-nowrap">
                       <input
@@ -1444,7 +1434,7 @@ export function LeadsPage() {
         <div className="flex items-center justify-between px-4 py-2 bg-white border-t">
           <div className="flex items-center">
             <span className="text-xs text-gray-700">
-              Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, filteredLeads.length)} de {filteredLeads.length} resultados
+              Mostrando {totalCount === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, totalCount)} de {totalCount} resultados
             </span>
           </div>
           <div className="flex items-center space-x-2">

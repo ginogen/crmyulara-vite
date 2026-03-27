@@ -12,13 +12,31 @@ function getRandomUser(userIds: string[]): string {
   return userIds[Math.floor(Math.random() * userIds.length)];
 }
 
-export function useLeads(organizationId?: string, branchId?: string) {
+interface LeadsOptions {
+  filters?: {
+    status?: string;
+    assignedTo?: string;
+    name?: string;
+    email?: string;
+    phone?: string;
+    origin?: string;
+    pax?: string;
+    search?: string;
+  };
+  page?: number;
+  pageSize?: number;
+  activeTab?: 'activos' | 'archivados';
+}
+
+export function useLeads(organizationId?: string, branchId?: string, options?: LeadsOptions) {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const supabase = createClient();
   const queryClient = useQueryClient();
   const { user, userRole } = useAuth();
+
+  const { filters, page = 1, pageSize = 10, activeTab = 'activos' } = options || {};
 
   // Función para obtener las reglas activas
   const getActiveRules = async (orgId: string): Promise<Rule[]> => {
@@ -71,78 +89,104 @@ export function useLeads(organizationId?: string, branchId?: string) {
   }, [organizationId, branchId]);
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['leads', organizationId, branchId, userRole, user?.id],
+    queryKey: ['leads', organizationId, branchId, userRole, user?.id, page, pageSize, activeTab, filters],
     queryFn: async () => {
       if (!organizationId || !branchId) {
-        return [];
+        return { leads: [], totalCount: 0 };
       }
 
       try {
-        console.log('useLeads: Executing query with filters', { organizationId, branchId, userRole });
-        
+        console.log('useLeads: Executing query with filters', { organizationId, branchId, userRole, page, pageSize, activeTab, filters });
+
         let query = supabase
           .from('leads')
-          .select('*')
+          .select('*', { count: 'exact' })
           .order('created_at', { ascending: false });
 
         // Aplicar filtros según el rol del usuario
         if (userRole === 'super_admin') {
-          // Super admin puede ver todos los leads, pero respetando el contexto seleccionado
-          console.log('useLeads: Super admin - filtering by selected organization_id and branch_id');
           query = query
             .eq('organization_id', organizationId)
             .eq('branch_id', branchId);
         } else if (userRole === 'org_admin') {
-          // FIXED: Org admin debe ver leads de su organización Y sucursal específica
-          console.log('useLeads: Org admin - filtering by organization_id AND branch_id');
           query = query
             .eq('organization_id', organizationId)
             .eq('branch_id', branchId);
         } else if (userRole === 'branch_manager') {
-          // Branch manager puede ver todos los leads de su sucursal
-          console.log('useLeads: Branch manager - filtering by organization_id and branch_id');
           query = query
             .eq('organization_id', organizationId)
             .eq('branch_id', branchId);
         } else {
-          // sales_agent solo puede ver leads asignados a ellos
-          console.log('useLeads: Sales agent - filtering by organization_id, branch_id and assigned_to');
           query = query
             .eq('organization_id', organizationId)
             .eq('branch_id', branchId)
             .eq('assigned_to', user?.id);
         }
 
-        const { data, error } = await query;
+        // Filtro por tab activo/archivado
+        if (activeTab === 'archivados') {
+          query = query.eq('status', 'archived');
+        } else {
+          query = query.neq('status', 'archived');
+        }
+
+        // Aplicar filtros opcionales server-side
+        if (filters?.status && filters.status !== 'all') {
+          query = query.eq('status', filters.status);
+        }
+        if (filters?.assignedTo && filters.assignedTo !== 'all') {
+          query = query.eq('assigned_to', filters.assignedTo);
+        }
+        if (filters?.name) {
+          query = query.ilike('full_name', `%${filters.name}%`);
+        }
+        if (filters?.email) {
+          query = query.ilike('email', `%${filters.email}%`);
+        }
+        if (filters?.phone) {
+          query = query.ilike('phone', `%${filters.phone}%`);
+        }
+        if (filters?.origin) {
+          query = query.ilike('origin', `%${filters.origin}%`);
+        }
+        if (filters?.pax) {
+          query = query.eq('pax_count', Number(filters.pax));
+        }
+        if (filters?.search) {
+          query = query.or(`full_name.ilike.%${filters.search}%,phone.ilike.%${filters.search}%`);
+        }
+
+        // Paginación server-side
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize - 1;
+        query = query.range(from, to);
+
+        const { data, error, count } = await query;
 
         if (error) {
           console.error('useLeads: Database error', { error, organizationId, branchId, userRole });
           throw error;
         }
 
-        console.log('useLeads: Query successful, returned leads count:', data?.length || 0);
-        console.log('useLeads: First 3 leads organization_ids:', 
-          data?.slice(0, 3).map(lead => ({ id: lead.id, organization_id: lead.organization_id, branch_id: lead.branch_id })) || []
-        );
-        return data || [];
+        console.log('useLeads: Query successful, returned leads count:', data?.length || 0, 'total:', count);
+        return { leads: data || [], totalCount: count || 0 };
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Error al cargar los leads';
         console.error('useLeads: Catch error', err);
         setError(errorMessage);
-        return [];
+        return { leads: [], totalCount: 0 };
       }
     },
     enabled: !!organizationId && !!branchId && !!userRole && !!user?.id,
-    gcTime: 0, // No mantener en caché para evitar problemas de cross-contamination
-    staleTime: 0, // Los datos se consideran siempre stale para forzar fetch
-    refetchOnMount: true, // Siempre refetch al montar
-    refetchOnWindowFocus: true // Refetch cuando se enfoca la ventana
+    staleTime: 30_000, // 30s — la query key incluye orgId/branchId, no hay cross-contamination
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: true
   });
 
   // Actualizar el estado local cuando los datos de la consulta cambian
   useEffect(() => {
     if (data) {
-      setLeads(data);
+      setLeads(data.leads);
       setLoading(false);
     }
   }, [data]);
@@ -194,7 +238,7 @@ export function useLeads(organizationId?: string, branchId?: string) {
           .eq('id', id)
           .single();
 
-        if (currentLead) {
+        if (currentLead && !currentLead.assigned_to) {
           const updatedLead = { ...currentLead, ...updates };
           const assignedUser = await applyRules(updatedLead);
           if (assignedUser) {
@@ -431,6 +475,7 @@ export function useLeads(organizationId?: string, branchId?: string) {
 
   return {
     leads,
+    totalCount: data?.totalCount ?? 0,
     loading: isLoading || loading,
     error,
     createLead: createLeadMutation,

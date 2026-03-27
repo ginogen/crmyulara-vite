@@ -101,10 +101,9 @@ export const useContacts = (organizationId?: string, branchId?: string) => {
       }
     },
     enabled: !!organizationId && !!branchId && !!userRole && !!user?.id,
-    gcTime: 0, // No mantener en caché para evitar problemas de cross-contamination
-    staleTime: 0, // Los datos se consideran siempre stale para forzar fetch
-    refetchOnMount: true, // Siempre refetch al montar
-    refetchOnWindowFocus: true // Refetch cuando se enfoca la ventana
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: true
   });
 
   // Actualizar el estado local cuando los datos de la consulta cambian

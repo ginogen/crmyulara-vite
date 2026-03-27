@@ -26,6 +26,13 @@ export function RuleModal({ isOpen, onClose, onSubmit, rule, agents }: RuleModal
   useEffect(() => {
     if (rule) {
       setFormData(rule);
+    } else {
+      setFormData({
+        type: 'campaign',
+        condition: '',
+        assigned_users: [],
+        is_active: true,
+      });
     }
   }, [rule]);
 
