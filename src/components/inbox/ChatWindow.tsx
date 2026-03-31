@@ -3,10 +3,11 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Loader2, Image, File as FileIcon, X } from 'lucide-react';
+import { Send, Loader2, Image, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { ChatMessage } from './ChatMessage';
+import { VoiceRecorder } from './VoiceRecorder';
+import { MediaPreview } from './MediaPreview';
 
 interface ChatWindowProps {
   conversationId: string;
@@ -67,9 +68,7 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
         (payload: any) => {
           if (payload.eventType === 'INSERT') {
             setMessages((prev) => {
-              // Remove any optimistic messages and add the real one
               const withoutOptimistic = prev.filter((m) => !m._optimistic);
-              // Avoid duplicates if the message already exists
               if (withoutOptimistic.some((m) => m.id === payload.new.id)) return withoutOptimistic;
               return [...withoutOptimistic, payload.new];
             });
@@ -91,33 +90,39 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const sendMessage = async () => {
-    if (!messageText.trim() && !selectedFile) return;
+  const getFileType = (file: File): string => {
+    if (file.type.startsWith('image/')) return 'image';
+    if (file.type.startsWith('video/')) return 'video';
+    if (file.type.startsWith('audio/')) return 'audio';
+    return 'document';
+  };
+
+  const sendMessage = async (overrideFile?: File) => {
+    const fileToSend = overrideFile || selectedFile;
+    if (!messageText.trim() && !fileToSend) return;
     if (!conversation?.whatsapp_number?.id) {
-      toast.error('No hay número WhatsApp configurado para esta conversación');
+      toast.error('No hay numero WhatsApp configurado para esta conversacion');
       return;
     }
 
-    const recipientPhone = conversation.contact?.phone;
+    const recipientPhone = conversation.contact?.phone || conversation.phone_number;
     if (!recipientPhone) {
-      toast.error('No se encontró el número del contacto');
+      toast.error('No se encontro el numero del contacto');
       return;
     }
 
-    // Capture values and clear input immediately for fluid UX
     const currentText = messageText;
-    const currentFile = selectedFile;
+    const currentFile = fileToSend;
     setMessageText('');
     setSelectedFile(null);
 
-    // Optimistic update: show message instantly
     const optimisticId = `optimistic-${Date.now()}`;
     const optimisticMessage: any = {
       id: optimisticId,
       conversation_id: conversationId,
       direction: 'outbound',
       content: currentText,
-      message_type: currentFile ? (currentFile.type.startsWith('image/') ? 'image' : currentFile.type.startsWith('audio/') ? 'audio' : 'document') : 'text',
+      message_type: currentFile ? getFileType(currentFile) : 'text',
       delivery_status: 'sending',
       created_at: new Date().toISOString(),
       _optimistic: true,
@@ -132,9 +137,7 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
       };
 
       if (currentFile) {
-        const isImage = currentFile.type.startsWith('image/');
-        const isAudio = currentFile.type.startsWith('audio/');
-        const type = isImage ? 'image' : isAudio ? 'audio' : 'document';
+        const type = getFileType(currentFile);
 
         const arrayBuffer = await currentFile.arrayBuffer();
         const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
@@ -156,10 +159,8 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      // Remove optimistic message — the real one will arrive via realtime
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
     } catch (error: any) {
-      // Mark optimistic message as failed
       setMessages((prev) =>
         prev.map((m) =>
           m.id === optimisticId ? { ...m, delivery_status: 'failed' } : m
@@ -176,12 +177,11 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
     }
   };
 
-  const getDeliveryIcon = (status: string) => {
-    if (status === 'read') return '✓✓';
-    if (status === 'delivered') return '✓✓';
-    if (status === 'sent') return '✓';
-    if (status === 'failed') return '✗';
-    return '○';
+  const handleVoiceRecordingComplete = (blob: Blob) => {
+    const audioFile = new File([blob], `voice-${Date.now()}.webm`, {
+      type: 'audio/webm;codecs=opus',
+    });
+    sendMessage(audioFile);
   };
 
   if (loading) {
@@ -198,14 +198,14 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
       <div className="flex items-center gap-3 px-4 py-3 border-b bg-background">
         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
           <span className="text-xs font-semibold text-primary">
-            {(conversation?.contact?.full_name || conversation?.contact?.phone || '?')[0].toUpperCase()}
+            {(conversation?.contact?.full_name || conversation?.push_name || conversation?.phone_number || '?')[0].toUpperCase()}
           </span>
         </div>
         <div>
           <p className="text-sm font-medium">
-            {conversation?.contact?.full_name || conversation?.contact?.phone || 'Desconocido'}
+            {conversation?.contact?.full_name || conversation?.push_name || conversation?.phone_number || 'Desconocido'}
           </p>
-          <p className="text-xs text-muted-foreground">{conversation?.contact?.phone}</p>
+          <p className="text-xs text-muted-foreground">{conversation?.contact?.phone || conversation?.phone_number}</p>
         </div>
       </div>
 
@@ -213,68 +213,12 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
       <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50 dark:bg-gray-900/20">
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-            Sin mensajes aún
+            Sin mensajes aun
           </div>
         ) : (
-          messages.map((msg) => {
-            const isOutbound = msg.direction === 'outbound';
-            return (
-              <div
-                key={msg.id}
-                className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm shadow-sm ${
-                    isOutbound
-                      ? 'bg-primary text-primary-foreground rounded-br-sm'
-                      : 'bg-background border rounded-bl-sm'
-                  }`}
-                >
-                  {msg.message_type === 'image' && msg.media_url && (
-                    <img
-                      src={msg.media_url}
-                      alt="Imagen"
-                      className="rounded-lg max-w-[200px] mb-1 cursor-pointer"
-                      onClick={() => window.open(msg.media_url, '_blank')}
-                    />
-                  )}
-                  {msg.message_type === 'audio' && msg.media_url && (
-                    <audio controls className="max-w-[200px] mb-1">
-                      <source src={msg.media_url} />
-                    </audio>
-                  )}
-                  {msg.message_type === 'document' && msg.media_url && (
-                    <a
-                      href={msg.media_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 underline mb-1"
-                    >
-                      <FileIcon className="w-4 h-4" />
-                      {msg.metadata?.filename || 'Documento'}
-                    </a>
-                  )}
-                  {msg.content && <p className="whitespace-pre-wrap break-words">{msg.content}</p>}
-                  <div
-                    className={`flex items-center gap-1 mt-0.5 text-xs ${
-                      isOutbound ? 'text-primary-foreground/70 justify-end' : 'text-muted-foreground'
-                    }`}
-                  >
-                    <span>
-                      {format(new Date(msg.created_at), 'HH:mm', { locale: es })}
-                    </span>
-                    {isOutbound && (
-                      <span
-                        className={msg.delivery_status === 'read' ? 'text-blue-300' : ''}
-                      >
-                        {getDeliveryIcon(msg.delivery_status)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })
+          messages.map((msg) => (
+            <ChatMessage key={msg.id} message={msg} />
+          ))
         )}
         <div ref={bottomRef} />
       </div>
@@ -282,13 +226,10 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
       {/* Input area */}
       <div className="p-3 border-t bg-background">
         {selectedFile && (
-          <div className="flex items-center gap-2 mb-2 p-2 bg-muted rounded-lg text-sm">
-            <FileIcon className="w-4 h-4 text-muted-foreground" />
-            <span className="flex-1 truncate">{selectedFile.name}</span>
-            <button onClick={() => setSelectedFile(null)} className="text-muted-foreground hover:text-foreground">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+          <MediaPreview
+            file={selectedFile}
+            onRemove={() => setSelectedFile(null)}
+          />
         )}
         <div className="flex items-center gap-2">
           <input
@@ -296,7 +237,10 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
             type="file"
             className="hidden"
             accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx"
-            onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+            onChange={(e) => {
+              setSelectedFile(e.target.files?.[0] || null);
+              if (fileInputRef.current) fileInputRef.current.value = '';
+            }}
           />
           <Button
             variant="ghost"
@@ -313,10 +257,14 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
             placeholder="Escribe un mensaje..."
             className="flex-1 h-9"
           />
+          <VoiceRecorder
+            onRecordingComplete={handleVoiceRecordingComplete}
+            disabled={!!selectedFile}
+          />
           <Button
             size="icon"
             className="flex-shrink-0 h-9 w-9"
-            onClick={sendMessage}
+            onClick={() => sendMessage()}
             disabled={!messageText.trim() && !selectedFile}
           >
             <Send className="w-4 h-4" />

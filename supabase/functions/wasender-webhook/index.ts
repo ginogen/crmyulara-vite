@@ -178,9 +178,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Find or create contact
-      // crmyulara contacts use: full_name, phone (not name, phone_number)
-      let contact = null;
+      // Check if a contact already exists for this phone (to link if so)
       const { data: existingContact } = await supabaseClient
         .from('contacts')
         .select('id')
@@ -188,46 +186,39 @@ Deno.serve(async (req) => {
         .eq('organization_id', whatsappNumber.organization_id)
         .maybeSingle();
 
-      if (existingContact) {
-        contact = existingContact;
-      } else {
-        const { data: newContact, error: contactError } = await supabaseClient
-          .from('contacts')
-          .insert({
-            phone: cleanPhone,
-            full_name: message.pushName || cleanPhone,
-            organization_id: whatsappNumber.organization_id,
-            branch_id: whatsappNumber.branch_id,
-          })
-          .select()
-          .single();
-
-        if (contactError) {
-          console.error('Error creating contact:', contactError);
-          return new Response(JSON.stringify({ success: false, error: 'Failed to create contact' }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-        contact = newContact;
-      }
-
-      // Find or create conversation in wa_conversations
+      // Find or create conversation by phone_number (not contact_id)
       let conversation = null;
       const { data: existingConversation } = await supabaseClient
         .from('wa_conversations')
         .select('id')
-        .eq('contact_id', contact.id)
+        .eq('phone_number', cleanPhone)
         .eq('whatsapp_number_id', whatsappNumber.id)
         .maybeSingle();
 
       if (existingConversation) {
         conversation = existingConversation;
+        // If contact exists but wasn't linked yet, link it now
+        if (existingContact) {
+          await supabaseClient
+            .from('wa_conversations')
+            .update({ contact_id: existingContact.id })
+            .eq('id', existingConversation.id)
+            .is('contact_id', null);
+        }
+        // Update push_name if changed
+        if (message.pushName) {
+          await supabaseClient
+            .from('wa_conversations')
+            .update({ push_name: message.pushName })
+            .eq('id', existingConversation.id);
+        }
       } else {
         const { data: newConversation, error: conversationError } = await supabaseClient
           .from('wa_conversations')
           .insert({
-            contact_id: contact.id,
+            phone_number: cleanPhone,
+            push_name: message.pushName || null,
+            contact_id: existingContact?.id || null,
             whatsapp_number_id: whatsappNumber.id,
             organization_id: whatsappNumber.organization_id,
             branch_id: whatsappNumber.branch_id,
@@ -238,12 +229,12 @@ Deno.serve(async (req) => {
           .single();
 
         if (conversationError) {
-          // Handle race condition
+          // Handle race condition on unique(phone_number, whatsapp_number_id)
           if (conversationError.code === '23505') {
             const { data: existingConv } = await supabaseClient
               .from('wa_conversations')
               .select('id')
-              .eq('contact_id', contact.id)
+              .eq('phone_number', cleanPhone)
               .eq('whatsapp_number_id', whatsappNumber.id)
               .single();
             conversation = existingConv;

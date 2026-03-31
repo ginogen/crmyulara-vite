@@ -795,21 +795,28 @@ export function LeadsPage() {
 
       if (!waNumber) { toast.error('No hay número de WhatsApp configurado'); return; }
 
-      // Find or create conversation
+      // Find or create conversation by phone_number
       let conversationId: string;
       const { data: existingConv } = await supabase
         .from('wa_conversations')
         .select('id')
-        .eq('contact_id', contactId)
+        .eq('phone_number', cleanPhone)
         .eq('whatsapp_number_id', waNumber.id)
         .maybeSingle();
 
       if (existingConv) {
         conversationId = existingConv.id;
+        // Ensure contact is linked
+        await supabase
+          .from('wa_conversations')
+          .update({ contact_id: contactId })
+          .eq('id', existingConv.id);
       } else {
         const { data: newConv, error } = await supabase
           .from('wa_conversations')
           .insert({
+            phone_number: cleanPhone,
+            push_name: lead.full_name,
             contact_id: contactId,
             whatsapp_number_id: waNumber.id,
             organization_id: currentOrganization!.id,

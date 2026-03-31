@@ -72,11 +72,17 @@ export function ConversationList({ selectedId, onSelect }: ConversationListProps
     };
   }, [currentOrganization?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const getDisplayName = (conv: any) =>
+    conv.contact?.full_name || conv.push_name || conv.contact?.phone || conv.phone_number || 'Desconocido';
+
+  const getDisplayPhone = (conv: any) =>
+    conv.contact?.phone || conv.phone_number || '';
+
   const filtered = conversations.filter((conv) => {
     if (!search.trim()) return true;
     const s = search.toLowerCase();
-    const name = conv.contact?.full_name?.toLowerCase() || '';
-    const phone = conv.contact?.phone?.toLowerCase() || '';
+    const name = getDisplayName(conv).toLowerCase();
+    const phone = getDisplayPhone(conv).toLowerCase();
     return name.includes(s) || phone.includes(s);
   });
 
@@ -136,13 +142,13 @@ export function ConversationList({ selectedId, onSelect }: ConversationListProps
                 <div className="flex items-start gap-3">
                   <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                     <span className="text-xs font-semibold text-primary">
-                      {(conv.contact?.full_name || conv.contact?.phone || '?')[0].toUpperCase()}
+                      {getDisplayName(conv)[0].toUpperCase()}
                     </span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-1">
                       <span className="text-sm font-medium truncate">
-                        {conv.contact?.full_name || conv.contact?.phone || 'Desconocido'}
+                        {getDisplayName(conv)}
                       </span>
                       {lastMsg && (
                         <span className="text-xs text-muted-foreground flex-shrink-0">
