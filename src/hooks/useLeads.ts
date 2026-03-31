@@ -221,6 +221,7 @@ export function useLeads(organizationId?: string, branchId?: string, options?: L
         const assignedUser = await applyRules(leadData as Lead);
         if (assignedUser) {
           finalLeadData.assigned_to = assignedUser;
+          finalLeadData.status = 'assigned';
         }
       }
 
@@ -265,6 +266,7 @@ export function useLeads(organizationId?: string, branchId?: string, options?: L
           const assignedUser = await applyRules(updatedLead);
           if (assignedUser) {
             updates.assigned_to = assignedUser;
+            updates.status = 'assigned';
           }
         }
       }
