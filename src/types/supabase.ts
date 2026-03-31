@@ -87,12 +87,12 @@ export type Contact = {
   full_name: string;
   email: string;
   phone: string;
-  city: string;
-  province: string;
-  tag: string;
+  city: string | null;
+  province: string | null;
+  tag: string | null;
   organization_id: string;
   branch_id: string;
-  assigned_to: string;
+  assigned_to: string | null;
   origin?: string;
   pax_count?: number;
   estimated_travel_date?: string;

@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Loader2, Image, File, X } from 'lucide-react';
+import { Send, Loader2, Image, File as FileIcon, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -17,7 +17,6 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
   const [messages, setMessages] = useState<any[]>([]);
   const [conversation, setConversation] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
   const [messageText, setMessageText] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -67,7 +66,13 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
         },
         (payload: any) => {
           if (payload.eventType === 'INSERT') {
-            setMessages((prev) => [...prev, payload.new]);
+            setMessages((prev) => {
+              // Remove any optimistic messages and add the real one
+              const withoutOptimistic = prev.filter((m) => !m._optimistic);
+              // Avoid duplicates if the message already exists
+              if (withoutOptimistic.some((m) => m.id === payload.new.id)) return withoutOptimistic;
+              return [...withoutOptimistic, payload.new];
+            });
           } else if (payload.eventType === 'UPDATE') {
             setMessages((prev) =>
               prev.map((m: any) => (m.id === payload.new.id ? { ...m, ...payload.new } : m))
@@ -99,7 +104,26 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
       return;
     }
 
-    setSending(true);
+    // Capture values and clear input immediately for fluid UX
+    const currentText = messageText;
+    const currentFile = selectedFile;
+    setMessageText('');
+    setSelectedFile(null);
+
+    // Optimistic update: show message instantly
+    const optimisticId = `optimistic-${Date.now()}`;
+    const optimisticMessage: any = {
+      id: optimisticId,
+      conversation_id: conversationId,
+      direction: 'outbound',
+      content: currentText,
+      message_type: currentFile ? (currentFile.type.startsWith('image/') ? 'image' : currentFile.type.startsWith('audio/') ? 'audio' : 'document') : 'text',
+      delivery_status: 'sending',
+      created_at: new Date().toISOString(),
+      _optimistic: true,
+    };
+    setMessages((prev) => [...prev, optimisticMessage]);
+
     try {
       let body: any = {
         whatsapp_number_id: conversation.whatsapp_number.id,
@@ -107,24 +131,24 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
         conversation_id: conversationId,
       };
 
-      if (selectedFile) {
-        const isImage = selectedFile.type.startsWith('image/');
-        const isAudio = selectedFile.type.startsWith('audio/');
+      if (currentFile) {
+        const isImage = currentFile.type.startsWith('image/');
+        const isAudio = currentFile.type.startsWith('audio/');
         const type = isImage ? 'image' : isAudio ? 'audio' : 'document';
 
-        const arrayBuffer = await selectedFile.arrayBuffer();
+        const arrayBuffer = await currentFile.arrayBuffer();
         const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
 
         body = {
           ...body,
           type,
           media: base64,
-          mimetype: selectedFile.type,
-          filename: selectedFile.name,
-          message: messageText || '',
+          mimetype: currentFile.type,
+          filename: currentFile.name,
+          message: currentText || '',
         };
       } else {
-        body = { ...body, type: 'text', message: messageText };
+        body = { ...body, type: 'text', message: currentText };
       }
 
       const { data, error } = await supabase.functions.invoke('wasender-send-message', { body });
@@ -132,12 +156,16 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      setMessageText('');
-      setSelectedFile(null);
+      // Remove optimistic message — the real one will arrive via realtime
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
     } catch (error: any) {
+      // Mark optimistic message as failed
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === optimisticId ? { ...m, delivery_status: 'failed' } : m
+        )
+      );
       toast.error(error.message || 'Error al enviar mensaje');
-    } finally {
-      setSending(false);
     }
   };
 
@@ -222,7 +250,7 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
                       rel="noopener noreferrer"
                       className="flex items-center gap-1 underline mb-1"
                     >
-                      <File className="w-4 h-4" />
+                      <FileIcon className="w-4 h-4" />
                       {msg.metadata?.filename || 'Documento'}
                     </a>
                   )}
@@ -255,7 +283,7 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
       <div className="p-3 border-t bg-background">
         {selectedFile && (
           <div className="flex items-center gap-2 mb-2 p-2 bg-muted rounded-lg text-sm">
-            <File className="w-4 h-4 text-muted-foreground" />
+            <FileIcon className="w-4 h-4 text-muted-foreground" />
             <span className="flex-1 truncate">{selectedFile.name}</span>
             <button onClick={() => setSelectedFile(null)} className="text-muted-foreground hover:text-foreground">
               <X className="w-4 h-4" />
@@ -284,19 +312,14 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
             onKeyDown={handleKeyDown}
             placeholder="Escribe un mensaje..."
             className="flex-1 h-9"
-            disabled={sending}
           />
           <Button
             size="icon"
             className="flex-shrink-0 h-9 w-9"
             onClick={sendMessage}
-            disabled={sending || (!messageText.trim() && !selectedFile)}
+            disabled={!messageText.trim() && !selectedFile}
           >
-            {sending ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Send className="w-4 h-4" />
-            )}
+            <Send className="w-4 h-4" />
           </Button>
         </div>
       </div>

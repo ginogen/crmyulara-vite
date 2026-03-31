@@ -1,12 +1,24 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ConversationList } from '@/components/inbox/ConversationList';
 import { ChatWindow } from '@/components/inbox/ChatWindow';
 import { ContactInfoPanel } from '@/components/inbox/ContactInfoPanel';
 import { MessageCircle } from 'lucide-react';
 
 export default function InboxPage() {
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
+    searchParams.get('conversation')
+  );
   const [showContactInfo, setShowContactInfo] = useState(true);
+
+  useEffect(() => {
+    const convId = searchParams.get('conversation');
+    if (convId) {
+      setSelectedConversationId(convId);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   return (
     <div className="flex h-full overflow-hidden -m-4">

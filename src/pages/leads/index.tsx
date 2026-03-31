@@ -6,7 +6,7 @@ import { formatDate } from '@/lib/utils/dates';
 import { generateInquiryNumber } from '@/lib/utils/strings';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLeads } from '@/hooks/useLeads';
-import { LeadModal, LeadHistoryModal, LeadTasksModal, WhatsAppModal, MakeIntegrationModal, BudgetModal } from '@/components/modals';
+import { LeadModal, LeadHistoryModal, LeadTasksModal, MakeIntegrationModal, BudgetModal } from '@/components/modals';
 import Select, { SingleValue, ActionMeta } from 'react-select';
 import { Badge } from "@/components/ui/badge"
 import {
@@ -283,8 +283,6 @@ export function LeadsPage() {
   const [activeFilters, setActiveFilters] = useState<Array<{ field: string; value: string }>>([]);
   const [selectedLeads, setSelectedLeads] = useState<Lead[]>([]);
   const [selectAllLeads, setSelectAllLeads] = useState(false);
-  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
-  const [selectedLeadForWA, setSelectedLeadForWA] = useState<Lead | null>(null);
   const [isMakeModalOpen, setIsMakeModalOpen] = useState(false);
   const [isFiltersOpen, setIsFiltersOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<'activos' | 'archivados'>('activos');
@@ -753,6 +751,81 @@ export function LeadsPage() {
     } catch (error) {
       console.error('Error creating budget from lead:', error);
       toast.error('Error al crear el presupuesto');
+    }
+  };
+
+  // Abrir conversación en Inbox para un lead
+  const handleOpenInboxConversation = async (lead: Lead) => {
+    try {
+      const cleanPhone = lead.phone.startsWith('+') ? lead.phone : `+${lead.phone.replace(/\D/g, '')}`;
+
+      // Find or create contact
+      let contactId: string;
+      const { data: existingContact } = await supabase
+        .from('contacts')
+        .select('id')
+        .eq('phone', cleanPhone)
+        .eq('organization_id', currentOrganization!.id)
+        .maybeSingle();
+
+      if (existingContact) {
+        contactId = existingContact.id;
+      } else {
+        const { data: newContact, error } = await supabase
+          .from('contacts')
+          .insert({
+            phone: cleanPhone,
+            full_name: lead.full_name,
+            organization_id: currentOrganization!.id,
+            branch_id: currentBranch?.id,
+          })
+          .select('id')
+          .single();
+        if (error) { toast.error('Error creando contacto'); return; }
+        contactId = newContact.id;
+      }
+
+      // Get whatsapp number for this org
+      const { data: waNumber } = await supabase
+        .from('whatsapp_numbers')
+        .select('id')
+        .eq('organization_id', currentOrganization!.id)
+        .limit(1)
+        .single();
+
+      if (!waNumber) { toast.error('No hay número de WhatsApp configurado'); return; }
+
+      // Find or create conversation
+      let conversationId: string;
+      const { data: existingConv } = await supabase
+        .from('wa_conversations')
+        .select('id')
+        .eq('contact_id', contactId)
+        .eq('whatsapp_number_id', waNumber.id)
+        .maybeSingle();
+
+      if (existingConv) {
+        conversationId = existingConv.id;
+      } else {
+        const { data: newConv, error } = await supabase
+          .from('wa_conversations')
+          .insert({
+            contact_id: contactId,
+            whatsapp_number_id: waNumber.id,
+            organization_id: currentOrganization!.id,
+            branch_id: currentBranch?.id,
+            status: 'open',
+            priority: 'medium',
+          })
+          .select('id')
+          .single();
+        if (error) { toast.error('Error creando conversación'); return; }
+        conversationId = newConv.id;
+      }
+
+      navigate(`/inbox?conversation=${conversationId}`);
+    } catch {
+      toast.error('Error al abrir conversación');
     }
   };
 
@@ -1273,8 +1346,7 @@ export function LeadsPage() {
                         <button
                           onClick={e => {
                             e.stopPropagation();
-                            setSelectedLeadForWA(lead);
-                            setIsWhatsAppModalOpen(true);
+                            handleOpenInboxConversation(lead);
                           }}
                           className="p-1 rounded-full hover:bg-gray-100"
                         >
@@ -1501,21 +1573,6 @@ export function LeadsPage() {
         />
       )}
 
-      {selectedLeadForWA && (
-        <WhatsAppModal
-          isOpen={isWhatsAppModalOpen}
-          onClose={() => {
-            setIsWhatsAppModalOpen(false);
-            setSelectedLeadForWA(null);
-          }}
-          contact={{
-            id: selectedLeadForWA.id,
-            full_name: selectedLeadForWA.full_name,
-            phone: selectedLeadForWA.phone,
-          }}
-          isLead={true}
-        />
-      )}
 
       {/* Nuevo modal para CSV */}
       <CSVUploadModal

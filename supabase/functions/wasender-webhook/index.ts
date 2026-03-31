@@ -28,22 +28,29 @@ Deno.serve(async (req) => {
       const message = data.messages;
       console.log('Processing message key:', JSON.stringify(message.key));
 
-      // Extract phone number
+      // Determine direction (needed before phone extraction)
+      const isFromMe = message.key?.fromMe === true;
+      const direction = isFromMe ? 'outbound' : 'inbound';
+
+      // Extract contact phone number - always use remoteJid (the other party)
       let phoneNumber = '';
-      if (message.key?.cleanedSenderPn) {
-        phoneNumber = message.key.cleanedSenderPn;
-      } else if (message.key?.senderPn) {
-        phoneNumber = message.key.senderPn.split('@')[0];
+      if (message.key?.remoteJid) {
+        phoneNumber = message.key.remoteJid.split('@')[0];
       } else if (message.remoteJid) {
         phoneNumber = message.remoteJid.split('@')[0];
       }
 
-      const cleanPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
-      console.log('Contact phone:', cleanPhone);
+      // Only use senderPn as fallback for inbound messages
+      if (!phoneNumber && !isFromMe) {
+        if (message.key?.cleanedSenderPn) {
+          phoneNumber = message.key.cleanedSenderPn;
+        } else if (message.key?.senderPn) {
+          phoneNumber = message.key.senderPn.split('@')[0];
+        }
+      }
 
-      // Determine direction
-      const isFromMe = message.key?.fromMe === true;
-      const direction = isFromMe ? 'outbound' : 'inbound';
+      const cleanPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
+      console.log('Contact phone:', cleanPhone, 'Direction:', direction);
 
       // Extract message content
       const messageContent =

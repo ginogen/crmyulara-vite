@@ -6,12 +6,12 @@ import { useAuth } from '@/contexts/AuthContext';
 type Contact = {
   id: string;
   full_name: string;
-  city: string;
-  province: string;
+  city: string | null;
+  province: string | null;
   phone: string;
-  email: string;
-  tag: string;
-  assigned_to: string;
+  email: string | null;
+  tag: string | null;
+  assigned_to: string | null;
   organization_id: string;
   branch_id: string;
   created_at: string;

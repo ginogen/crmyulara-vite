@@ -252,9 +252,9 @@ export function ContactsPage() {
 
   const filteredContacts = contacts.filter((contact) => {
     return (
-      contact.full_name.toLowerCase().includes(filters.name.toLowerCase()) &&
-      contact.city.toLowerCase().includes(filters.city.toLowerCase()) &&
-      contact.tag.toLowerCase().includes(filters.tag.toLowerCase()) &&
+      (contact.full_name || '').toLowerCase().includes(filters.name.toLowerCase()) &&
+      (contact.city || '').toLowerCase().includes(filters.city.toLowerCase()) &&
+      (contact.tag || '').toLowerCase().includes(filters.tag.toLowerCase()) &&
       (filters.assignedTo === 'all' || !filters.assignedTo ? true : contact.assigned_to === filters.assignedTo)
     );
   });
