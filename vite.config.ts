@@ -22,13 +22,6 @@ export default defineConfig({
         manualChunks: {
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           'vendor-mui': ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled'],
-          'vendor-fullcalendar': [
-            '@fullcalendar/core',
-            '@fullcalendar/react',
-            '@fullcalendar/daygrid',
-            '@fullcalendar/timegrid',
-            '@fullcalendar/interaction',
-          ],
           'vendor-charts': ['recharts'],
           'radix-ui': [
             '@radix-ui/react-select',

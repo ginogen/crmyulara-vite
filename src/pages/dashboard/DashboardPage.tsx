@@ -31,16 +31,6 @@ export default function DashboardPage() {
   }>>([]);
   const supabase = createClient();
 
-  // Si no hay organización o sucursal seleccionada, mostrar mensaje
-  if (!currentOrganization || !currentBranch) {
-    return (
-      <div className="p-6 text-center">
-        <h2 className="text-xl font-semibold text-gray-700 mb-2">Seleccione una organización y sucursal</h2>
-        <p className="text-gray-500">Para ver el dashboard, es necesario seleccionar una organización y sucursal.</p>
-      </div>
-    );
-  }
-
   useEffect(() => {
     async function fetchStats() {
       try {
@@ -55,37 +45,31 @@ export default function DashboardPage() {
           return;
         }
 
-        let baseQuery = supabase.from('leads').select('*', { count: 'exact' });
+        // Helper to build a fresh query with role-based filters
+        const buildQuery = () => {
+          let q = supabase.from('leads').select('*', { count: 'exact' });
+          if (userRole === 'super_admin') {
+            // Super admin puede ver todos los leads
+          } else if (userRole === 'org_admin') {
+            q = q.eq('organization_id', currentOrganization.id);
+          } else if (userRole === 'branch_manager') {
+            q = q.eq('organization_id', currentOrganization.id).eq('branch_id', currentBranch.id);
+          } else {
+            q = q.eq('organization_id', currentOrganization.id).eq('branch_id', currentBranch.id).eq('assigned_to', user?.id);
+          }
+          return q;
+        };
 
-        // Aplicar filtros según el rol del usuario
-        if (userRole === 'super_admin') {
-          // Super admin puede ver todos los leads
-        } else if (userRole === 'org_admin') {
-          // Org admin solo puede ver leads de su organización
-          baseQuery = baseQuery.eq('organization_id', currentOrganization.id);
-        } else if (userRole === 'branch_manager') {
-          // Branch manager puede ver todos los leads de su sucursal
-          baseQuery = baseQuery
-            .eq('organization_id', currentOrganization.id)
-            .eq('branch_id', currentBranch.id);
-        } else {
-          // sales_agent solo puede ver leads asignados a ellos
-          baseQuery = baseQuery
-            .eq('organization_id', currentOrganization.id)
-            .eq('branch_id', currentBranch.id)
-            .eq('assigned_to', user?.id);
-        }
-        
         const [
           { count: totalLeadsCount },
           { count: leadsWithoutManagementCount },
           { count: interestedCount },
           { count: contactedCount }
         ] = await Promise.all([
-          baseQuery,
-          baseQuery.eq('status', 'new'),
-          baseQuery.eq('status', 'interested'),
-          baseQuery.eq('status', 'contacted')
+          buildQuery(),
+          buildQuery().eq('status', 'new'),
+          buildQuery().eq('status', 'interested'),
+          buildQuery().eq('status', 'contacted')
         ]);
 
         setStats({
@@ -173,11 +157,11 @@ export default function DashboardPage() {
           if (task.related_to_type === 'lead') {
             const relatedLead = leads?.find(lead => lead.id === task.related_to_id);
             relatedName = relatedLead?.full_name || 'Lead no encontrado';
-            relatedInfo = relatedLead?.inquiry_number || '';
+            relatedInfo = String(relatedLead?.inquiry_number || '');
           } else if (task.related_to_type === 'contact') {
             const relatedContact = contacts?.find(contact => contact.id === task.related_to_id);
             relatedName = relatedContact?.full_name || 'Contacto no encontrado';
-            relatedInfo = relatedContact?.phone || '';
+            relatedInfo = String(relatedContact?.phone || '');
           }
 
           return {
@@ -195,6 +179,16 @@ export default function DashboardPage() {
 
     fetchPendingTasks();
   }, [currentOrganization?.id, currentBranch?.id, userRole, user?.id]);
+
+  // Si no hay organización o sucursal seleccionada, mostrar mensaje
+  if (!currentOrganization || !currentBranch) {
+    return (
+      <div className="p-6 text-center">
+        <h2 className="text-xl font-semibold text-gray-700 mb-2">Seleccione una organización y sucursal</h2>
+        <p className="text-gray-500">Para ver el dashboard, es necesario seleccionar una organización y sucursal.</p>
+      </div>
+    );
+  }
 
   if (loading || leadsLoading || contactsLoading || budgetsLoading) {
     return (
