@@ -32,21 +32,42 @@ Deno.serve(async (req) => {
       const isFromMe = message.key?.fromMe === true;
       const direction = isFromMe ? 'outbound' : 'inbound';
 
-      // Extract contact phone number - always use remoteJid (the other party)
+      // Extract contact phone number
+      // For LID-based remoteJids (@lid), use cleanedSenderPn/senderPn instead
       let phoneNumber = '';
-      if (message.key?.remoteJid) {
-        phoneNumber = message.key.remoteJid.split('@')[0];
-      } else if (message.remoteJid) {
-        phoneNumber = message.remoteJid.split('@')[0];
-      }
+      const remoteJid = message.key?.remoteJid || message.remoteJid || '';
 
-      // Only use senderPn as fallback for inbound messages
-      if (!phoneNumber && !isFromMe) {
+      if (isFromMe) {
+        // Outbound: remoteJid is the recipient
+        if (remoteJid.endsWith('@s.whatsapp.net')) {
+          phoneNumber = remoteJid.split('@')[0];
+        }
+      } else {
+        // Inbound: prefer cleanedSenderPn/senderPn (reliable), fallback to remoteJid only if @s.whatsapp.net
         if (message.key?.cleanedSenderPn) {
           phoneNumber = message.key.cleanedSenderPn;
         } else if (message.key?.senderPn) {
           phoneNumber = message.key.senderPn.split('@')[0];
+        } else if (remoteJid.endsWith('@s.whatsapp.net')) {
+          phoneNumber = remoteJid.split('@')[0];
         }
+      }
+
+      // Skip messages where no valid phone number could be extracted (groups, broadcast, LIDs without senderPn)
+      if (!phoneNumber) {
+        console.log('Skipping message: no phone number extractable. remoteJid:', remoteJid);
+        return new Response(JSON.stringify({ success: true, skipped: 'no-phone' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Validate E.164 format (7-15 digits)
+      const digits = phoneNumber.replace(/\D/g, '');
+      if (digits.length < 7 || digits.length > 15) {
+        console.error('Invalid phone number:', phoneNumber, 'from remoteJid:', remoteJid);
+        return new Response(JSON.stringify({ success: true, skipped: 'invalid-phone' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
 
       const cleanPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
@@ -138,6 +159,7 @@ Deno.serve(async (req) => {
               null;
 
             if (tempMediaUrl) {
+              console.log(`Decrypted media URL obtained for ${messageType}, uploading to storage...`);
               let attempts = 0;
               while (!mediaUrl && attempts < 3) {
                 attempts++;
@@ -168,8 +190,15 @@ Deno.serve(async (req) => {
 
                   mediaUrl = publicUrlData.publicUrl;
                 } catch (err) {
+                  console.error(`Media upload attempt ${attempts}/3 failed for ${messageType}:`, err instanceof Error ? err.message : err);
                   if (attempts < 3) await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
                 }
+              }
+
+              // Fallback: use temporary Wasender URL if all upload attempts failed
+              if (!mediaUrl) {
+                console.error(`All upload attempts failed for ${messageType}. Using temporary Wasender URL as fallback.`);
+                mediaUrl = tempMediaUrl;
               }
             }
           }
