@@ -272,16 +272,53 @@ export const handler: Handler = async (event) => {
         data = JSON.parse(cleanedBody);
         console.log(`[${requestId}] JSON parseado exitosamente después de limpieza`);
       } catch (secondParseError) {
-        console.error(`[${requestId}] Error persistente parseando JSON:`, secondParseError);
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ 
-            error: 'Invalid JSON format',
-            details: parseError instanceof Error ? parseError.message : String(parseError),
-            body_preview: event.body?.substring(0, 200)
-          })
-        };
+        // Tercer intento: fix valores sin comillas (Make a veces envía "key": valor en vez de "key": "valor")
+        try {
+          const fixedBody = (event.body || '')
+            .replace(/[\x00-\x1F\x7F]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            // Envolver valores sin comillas después de ":" que no sean true/false/null/números/objetos/arrays
+            .replace(
+              /("(?:[^"\\]|\\.)*"\s*:\s*)([a-zA-Z][a-zA-Z0-9_\s-]*?)(\s*[,}\]])/g,
+              (match, prefix, value, suffix) => {
+                const trimmedValue = value.trim();
+                // Preservar valores JSON válidos sin comillas
+                if (['true', 'false', 'null'].includes(trimmedValue)) {
+                  return match;
+                }
+                return `${prefix}"${trimmedValue}"${suffix}`;
+              }
+            );
+
+          console.log(`[${requestId}] Intentando con fix de valores sin comillas...`);
+          data = JSON.parse(fixedBody);
+          console.log(`[${requestId}] JSON parseado exitosamente después de fix de comillas`);
+        } catch (thirdParseError) {
+          // Extraer posición del error para contexto
+          const errorMsg = parseError instanceof Error ? parseError.message : String(parseError);
+          const posMatch = errorMsg.match(/position\s+(\d+)/i);
+          let errorContext = '';
+          if (posMatch && event.body) {
+            const pos = parseInt(posMatch[1], 10);
+            const start = Math.max(0, pos - 100);
+            const end = Math.min(event.body.length, pos + 100);
+            errorContext = `...${event.body.substring(start, end)}...`;
+            console.error(`[${requestId}] Contexto alrededor de posición ${pos}:`, errorContext);
+          }
+
+          console.error(`[${requestId}] Error persistente parseando JSON (3 intentos fallidos):`, thirdParseError);
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({
+              error: 'Invalid JSON format',
+              details: errorMsg,
+              body_preview: event.body?.substring(0, 200),
+              ...(errorContext && { error_context: errorContext })
+            })
+          };
+        }
       }
     }
     
