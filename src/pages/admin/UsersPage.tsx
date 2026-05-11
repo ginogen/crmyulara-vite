@@ -110,7 +110,17 @@ export function UsersPage() {
   const handleUserSubmit = async (form: any) => {
     try {
       if (selectedUser) {
-        // Actualizar usuario existente
+        // Si el email cambió, actualizar en auth.users
+        if (form.email !== selectedUser.email) {
+          const res = await fetch('/.netlify/functions/update-user-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: selectedUser.id, email: form.email }),
+          });
+          const result = await res.json();
+          if (!res.ok) throw new Error(result.error || 'Error al actualizar email en auth');
+        }
+        // Actualizar usuario existente en public.users
         const { error } = await supabase
           .from('users')
           .update({
