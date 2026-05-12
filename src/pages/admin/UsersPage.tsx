@@ -155,6 +155,10 @@ export function UsersPage() {
   const handleDeleteUser = async (userId: string) => {
     if (!window.confirm('¿Estás seguro de que deseas eliminar este usuario?')) return;
     try {
+      // Obtener el email del usuario antes de borrar
+      const userToDelete = users.find(u => u.id === userId);
+      const userEmail = userToDelete?.email;
+
       // Eliminar directamente de la tabla users primero
       const { error: deleteError } = await supabase
         .from('users')
@@ -166,13 +170,54 @@ export function UsersPage() {
         throw deleteError;
       }
 
+      // Limpiar auth.users para evitar registros huérfanos
+      if (userEmail) {
+        try {
+          const res = await fetch('/.netlify/functions/delete-auth-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: userEmail }),
+          });
+          if (!res.ok) {
+            const result = await res.json();
+            console.warn('No se pudo limpiar auth.users:', result.error);
+            alert('Usuario eliminado de la tabla, pero no se pudo limpiar de autenticación. Usa "Limpiar Email en Auth" si es necesario.');
+          }
+        } catch (authErr) {
+          console.warn('Error al limpiar auth.users:', authErr);
+        }
+      }
+
       fetchUsers();
       alert('Usuario eliminado exitosamente');
     } catch (err: any) {
       console.error('Error completo:', err);
       alert(`Error al eliminar usuario: ${err.message || 'Error desconocido'}`);
-      // Si hubo un error, refrescar la lista de usuarios para asegurar consistencia
       fetchUsers();
+    }
+  };
+
+  const handleCleanAuthEmail = async () => {
+    const email = prompt('Ingresa el email a limpiar de auth.users:');
+    if (!email) return;
+
+    try {
+      const res = await fetch('/.netlify/functions/delete-auth-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(result.error || 'Error al limpiar email');
+      }
+
+      alert(`Email ${email} eliminado de autenticación exitosamente. Ahora puedes crear un usuario nuevo con ese email.`);
+    } catch (err: any) {
+      console.error('Error al limpiar auth:', err);
+      alert(`Error: ${err.message}`);
     }
   };
 
@@ -301,9 +346,16 @@ export function UsersPage() {
 
         <div className="sm:flex sm:items-center sm:justify-between">
           <h1 className="text-2xl font-semibold text-gray-900">Usuarios</h1>
-          <Button onClick={handleNewUser}>
-            Nuevo Usuario
-          </Button>
+          <div className="flex gap-2">
+            {userRole === 'super_admin' && (
+              <Button onClick={handleCleanAuthEmail} variant="outline">
+                Limpiar Email en Auth
+              </Button>
+            )}
+            <Button onClick={handleNewUser}>
+              Nuevo Usuario
+            </Button>
+          </div>
         </div>
 
         {/* Filtros */}
