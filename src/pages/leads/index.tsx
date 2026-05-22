@@ -9,6 +9,7 @@ import { useLeads } from '@/hooks/useLeads';
 import { LeadModal, LeadHistoryModal, LeadTasksModal, MakeIntegrationModal, BudgetModal } from '@/components/modals';
 import Select, { SingleValue, ActionMeta } from 'react-select';
 import { Badge } from "@/components/ui/badge"
+import { useSearchParams } from 'react-router-dom';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -260,6 +261,7 @@ const ArchiveLeadModal: React.FC<ArchiveLeadModalProps> = ({ isOpen, onClose, on
 export function LeadsPage() {
   const { user, currentOrganization, currentBranch, userRole, loading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [filters, setFilters] = useState({
     status: '',
     assignedTo: '',
@@ -319,6 +321,37 @@ export function LeadsPage() {
 
   // Hook para presupuestos
   const { createBudget } = useBudgets(currentOrganization?.id, currentBranch?.id);
+
+  // Deep-linking: abrir modal de tareas desde URL param
+  useEffect(() => {
+    const openTaskLeadId = searchParams.get('openTask');
+    if (!openTaskLeadId || loading) return;
+
+    // Buscar el lead en la lista cargada
+    const lead = leads.find(l => l.id === openTaskLeadId);
+    if (lead) {
+      setSelectedLead(lead);
+      setIsTasksModalOpen(true);
+    } else {
+      // Si el lead no está en la lista visible, hacer fetch directo
+      const fetchAndOpen = async () => {
+        const { data } = await supabase
+          .from('leads')
+          .select('*')
+          .eq('id', openTaskLeadId)
+          .single();
+        if (data) {
+          setSelectedLead(data as Lead);
+          setIsTasksModalOpen(true);
+        }
+      };
+      fetchAndOpen();
+    }
+
+    // Limpiar el param
+    searchParams.delete('openTask');
+    setSearchParams(searchParams, { replace: true });
+  }, [searchParams, leads, loading]);
 
   useEffect(() => {
     const fetchAgents = async () => {

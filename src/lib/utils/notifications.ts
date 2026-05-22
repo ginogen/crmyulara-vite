@@ -5,6 +5,44 @@ import { toast } from 'sonner';
 let notificationPermission: NotificationPermission = 'default';
 
 type Task = Database['public']['Tables']['tasks']['Row'];
+type TaskWithEntityName = Task & { entityName?: string };
+
+export async function resolveTaskEntityNames(tasks: Task[]): Promise<TaskWithEntityName[]> {
+  if (tasks.length === 0) return [];
+
+  const supabase = createClient();
+  const leadIds = tasks.filter(t => t.related_to_type === 'lead' && t.related_to_id).map(t => t.related_to_id!);
+  const contactIds = tasks.filter(t => t.related_to_type === 'contact' && t.related_to_id).map(t => t.related_to_id!);
+
+  const nameMap = new Map<string, string>();
+
+  const [leadsResult, contactsResult] = await Promise.all([
+    leadIds.length > 0
+      ? supabase.from('leads').select('id, full_name').in('id', leadIds)
+      : Promise.resolve({ data: [] }),
+    contactIds.length > 0
+      ? supabase.from('contacts').select('id, full_name').in('id', contactIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  leadsResult.data?.forEach((l: any) => nameMap.set(l.id, l.full_name));
+  contactsResult.data?.forEach((c: any) => nameMap.set(c.id, c.full_name));
+
+  return tasks.map(task => ({
+    ...task,
+    entityName: task.related_to_id ? nameMap.get(task.related_to_id) || undefined : undefined,
+  }));
+}
+
+function getTaskNavigationUrl(task: Task): string | null {
+  if (task.related_to_type === 'lead' && task.related_to_id) {
+    return `/leads?openTask=${task.related_to_id}`;
+  }
+  if (task.related_to_type === 'contact' && task.related_to_id) {
+    return `/contacts?openTask=${task.related_to_id}`;
+  }
+  return null;
+}
 
 export async function getTodayTasks(userId: string): Promise<Task[]> {
   const supabase = createClient();
@@ -181,7 +219,8 @@ export async function showTaskDeadlineNotification(task: Task) {
       action: {
         label: 'Ver detalles',
         onClick: () => {
-          console.log('Navegando a la tarea:', task.id);
+          const url = getTaskNavigationUrl(task);
+          if (url) window.location.href = url;
         }
       }
     }
@@ -234,23 +273,31 @@ export async function subscribeToTaskUpdates(
         table: 'tasks',
         filter: `assigned_to=eq.${userId}`,
       },
-      (payload) => {
+      async (payload) => {
         console.log('Task update received:', payload);
         
         // Show immediate notification for new tasks
         if (payload.eventType === 'INSERT') {
           const task = payload.new as Task;
-          
-          // Show immediate notification for new task
+
+          // Resolve entity name for the notification
+          const enriched = await resolveTaskEntityNames([task]);
+          const entityLabel = enriched[0]?.entityName ? ` para ${enriched[0].entityName}` : '';
+          const navUrl = getTaskNavigationUrl(task);
+
           showBrowserNotification('📋 Nueva tarea asignada', {
-            body: `Se te ha asignado: "${task.title}"`,
+            body: `"${task.title}"${entityLabel}`,
             tag: `new-task-${task.id}`,
             requireInteraction: false
           });
-          
+
           toast.info('📋 Nueva tarea asignada', {
-            description: `"${task.title}"`,
-            duration: 8000
+            description: `"${task.title}"${entityLabel}`,
+            duration: 8000,
+            action: navUrl ? {
+              label: 'Ver tarea',
+              onClick: () => { window.location.href = navUrl; }
+            } : undefined
           });
         }
         

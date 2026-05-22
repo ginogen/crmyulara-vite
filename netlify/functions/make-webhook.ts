@@ -483,7 +483,7 @@ export const handler: Handler = async (event) => {
                 inquiry_number: inquiryNumber,
                 full_name: fullName,
                 email: email,
-                status: 'new',
+                status: assignedToUserId ? 'assigned' : 'new',
                 assigned_to: assignedToUserId,
                 origin: origin,
                 province: province,

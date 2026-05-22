@@ -34,6 +34,8 @@ export function useTaskNotifications() {
     // Subscribe to real-time task updates
     subscribeToTaskUpdates(user.id, (payload) => {
       console.log('Real-time task update:', payload);
+      // Emitir evento para que el Topbar refresque el badge
+      window.dispatchEvent(new CustomEvent('tasks-updated'));
     }).then((unsubscribe) => {
       subscriptionRef.current = unsubscribe;
     });

@@ -1,12 +1,12 @@
 import { BellIcon, ChevronDownIcon, ClockIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useState } from 'react';
-import { getTodayTasks, getOverdueTasks, getUpcomingTasks } from '@/lib/utils/notifications';
+import { useEffect, useState, useCallback } from 'react';
+import { getTodayTasks, getOverdueTasks, getUpcomingTasks, resolveTaskEntityNames } from '@/lib/utils/notifications';
 import { Database } from '@/lib/supabase/database.types';
+import { useNavigate } from 'react-router-dom';
 
 type Task = Database['public']['Tables']['tasks']['Row'] & {
-  contacts?: { full_name: string };
-  leads?: { name: string };
+  entityName?: string;
 };
 
 // Definimos las interfaces
@@ -52,6 +52,7 @@ export function Topbar() {
     loading
   } = useAuth();
 
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [tasksLoading, setTasksLoading] = useState(false);
@@ -80,9 +81,9 @@ export function Topbar() {
     }
   }, [user?.id, loading]);
 
-  const loadUserTasks = async () => {
+  const loadUserTasks = useCallback(async () => {
     if (!user?.id) return;
-    
+
     setTasksLoading(true);
     try {
       const [todayTasks, overdueTasks, upcomingTasks] = await Promise.all([
@@ -90,20 +91,39 @@ export function Topbar() {
         getOverdueTasks(user.id),
         getUpcomingTasks(user.id, 3) // próximos 3 días
       ]);
-      
+
       // Combinar y ordenar tareas por fecha de vencimiento
       const allTasks = [...overdueTasks, ...todayTasks, ...upcomingTasks];
-      const uniqueTasks = allTasks.filter((task, index, self) => 
+      const uniqueTasks = allTasks.filter((task, index, self) =>
         index === self.findIndex(t => t.id === task.id)
       );
-      
+
       uniqueTasks.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
-      setTasks(uniqueTasks);
+
+      // Resolver nombres de entidades
+      const enrichedTasks = await resolveTaskEntityNames(uniqueTasks);
+      setTasks(enrichedTasks);
     } catch (error) {
       console.error('Error loading tasks:', error);
     } finally {
       setTasksLoading(false);
     }
+  }, [user?.id]);
+
+  // Escuchar evento tasks-updated para refrescar badge en real-time
+  useEffect(() => {
+    const handleTasksUpdated = () => { loadUserTasks(); };
+    window.addEventListener('tasks-updated', handleTasksUpdated);
+    return () => { window.removeEventListener('tasks-updated', handleTasksUpdated); };
+  }, [loadUserTasks]);
+
+  const handleNotificationClick = (task: Task) => {
+    if (task.related_to_type === 'lead' && task.related_to_id) {
+      navigate(`/leads?openTask=${task.related_to_id}`);
+    } else if (task.related_to_type === 'contact' && task.related_to_id) {
+      navigate(`/contacts?openTask=${task.related_to_id}`);
+    }
+    setShowNotifications(false);
   };
 
   const formatDueDate = (dueDate: string) => {
@@ -308,22 +328,20 @@ export function Topbar() {
                     ) : (
                       tasks.slice(0, 10).map((task) => {
                         const dueInfo = formatDueDate(task.due_date);
-                        let entityName = 'Sin asignar';
-                        if (task.related_to_type === 'contact' && task.contacts) {
-                          entityName = task.contacts.full_name;
-                        } else if (task.related_to_type === 'lead' && task.leads) {
-                          entityName = task.leads.name;
-                        }
-                        
+
                         return (
-                          <div key={task.id} className="px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0">
+                          <div
+                            key={task.id}
+                            className="px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 cursor-pointer"
+                            onClick={() => handleNotificationClick(task)}
+                          >
                             <div className="flex items-start justify-between">
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium text-gray-900 truncate">
                                   {task.title}
                                 </p>
                                 <p className="text-xs text-gray-500 truncate">
-                                  {entityName}
+                                  {task.entityName || 'Sin asignar'}
                                 </p>
                               </div>
                               <div className="flex items-center space-x-1 ml-2">

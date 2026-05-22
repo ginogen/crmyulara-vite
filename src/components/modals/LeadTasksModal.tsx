@@ -36,14 +36,36 @@ export function LeadTasksModal({ isOpen, onClose, leadId }: LeadTasksModalProps)
     description: '',
     due_date: '',
   });
-  const { user, currentOrganization, currentBranch } = useAuth();
+  const { user, currentOrganization, currentBranch, userRole } = useAuth();
   const supabase = createClient();
+  const [assignableUsers, setAssignableUsers] = useState<Array<{ id: string; full_name: string }>>([]);
+  const [selectedAssignee, setSelectedAssignee] = useState<string>('');
+
+  const canAssignToOthers = userRole === 'super_admin' || userRole === 'org_admin' || userRole === 'branch_manager';
 
   useEffect(() => {
     if (isOpen && leadId) {
       fetchTasks();
     }
   }, [isOpen, leadId]);
+
+  // Fetch assignable users when modal opens (for admins)
+  useEffect(() => {
+    if (!isOpen || !canAssignToOthers || !currentOrganization?.id || !currentBranch?.id) return;
+
+    const fetchUsers = async () => {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, full_name')
+        .eq('organization_id', currentOrganization.id)
+        .eq('branch_id', currentBranch.id);
+
+      if (!error && data) {
+        setAssignableUsers(data);
+      }
+    };
+    fetchUsers();
+  }, [isOpen, canAssignToOthers, currentOrganization?.id, currentBranch?.id]);
 
   const fetchTasks = async () => {
     if (!leadId) return;
@@ -92,7 +114,7 @@ export function LeadTasksModal({ isOpen, onClose, leadId }: LeadTasksModalProps)
         priority: 'medium',
         related_to_type: 'lead',
         related_to_id: leadId,
-        assigned_to: user.id,
+        assigned_to: selectedAssignee || user.id,
         organization_id: currentOrganization.id,
         branch_id: currentBranch.id,
       };
@@ -122,6 +144,7 @@ export function LeadTasksModal({ isOpen, onClose, leadId }: LeadTasksModalProps)
         description: '',
         due_date: '',
       });
+      setSelectedAssignee('');
 
       // Registrar en el historial del lead
       await supabase.from('lead_history').insert({
@@ -252,6 +275,24 @@ export function LeadTasksModal({ isOpen, onClose, leadId }: LeadTasksModalProps)
                   required
                   placeholder="Seleccionar fecha y hora límite"
                 />
+                {canAssignToOthers && assignableUsers.length > 0 && (
+                  <div className="sm:col-span-2">
+                    <label htmlFor="assignee" className="block text-sm font-medium text-gray-700 mb-1">
+                      Asignar a
+                    </label>
+                    <select
+                      id="assignee"
+                      value={selectedAssignee}
+                      onChange={(e) => setSelectedAssignee(e.target.value)}
+                      className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm transition-colors"
+                    >
+                      <option value="">Yo mismo</option>
+                      {assignableUsers.filter(u => u.id !== user?.id).map((u) => (
+                        <option key={u.id} value={u.id}>{u.full_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="sm:col-span-2">
                   <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
                     Descripción
