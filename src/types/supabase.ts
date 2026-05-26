@@ -122,6 +122,7 @@ export type Lead = {
   converted_to_contact: boolean | null;
   archived_reason: string | null;
   archived_at: string | null;
+  notes: string | null;
 };
 
 export type Task = {

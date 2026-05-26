@@ -893,6 +893,7 @@ export function LeadsPage() {
         email: String(row.email || ''),
         archived_reason: null,
         archived_at: null,
+        notes: String(row.notes || row.notas || '') || null,
       }));
 
       // Validar datos requeridos

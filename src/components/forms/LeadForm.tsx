@@ -25,6 +25,7 @@ export function LeadForm({ initialData, onSubmit }: LeadFormProps) {
     converted_to_contact: initialData?.converted_to_contact || null,
     archived_reason: initialData?.archived_reason || null,
     archived_at: initialData?.archived_at || null,
+    notes: initialData?.notes || null,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -169,6 +170,21 @@ export function LeadForm({ initialData, onSubmit }: LeadFormProps) {
           }
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
           required
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700">
+          Notas
+        </label>
+        <textarea
+          value={formData.notes || ''}
+          onChange={(e) =>
+            setFormData({ ...formData, notes: e.target.value || null })
+          }
+          rows={3}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          placeholder="Observaciones sobre el lead..."
         />
       </div>
 

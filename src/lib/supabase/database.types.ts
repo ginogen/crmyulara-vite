@@ -135,6 +135,7 @@ export interface Database {
           converted_to_contact: boolean | null
           archived_reason: string | null
           archived_at: string | null
+          notes: string | null
         }
         Insert: {
           id?: string
@@ -154,6 +155,7 @@ export interface Database {
           converted_to_contact?: boolean | null
           archived_reason?: string | null
           archived_at?: string | null
+          notes?: string | null
         }
         Update: {
           id?: string
@@ -173,6 +175,7 @@ export interface Database {
           converted_to_contact?: boolean | null
           archived_reason?: string | null
           archived_at?: string | null
+          notes?: string | null
         }
       }
       tasks: {
