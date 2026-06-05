@@ -70,7 +70,9 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
             setMessages((prev) => {
               const withoutOptimistic = prev.filter((m) => !m._optimistic);
               if (withoutOptimistic.some((m) => m.id === payload.new.id)) return withoutOptimistic;
-              return [...withoutOptimistic, payload.new];
+              return [...withoutOptimistic, payload.new].sort(
+                (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+              );
             });
           } else if (payload.eventType === 'UPDATE') {
             setMessages((prev) =>

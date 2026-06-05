@@ -234,11 +234,14 @@ Deno.serve(async (req) => {
             .eq('id', existingConversation.id)
             .is('contact_id', null);
         }
-        // Update push_name if changed
-        if (message.pushName) {
+        // Reopen closed conversations on inbound message + update push_name
+        const updateFields: Record<string, string> = {};
+        if (!isFromMe) updateFields.status = 'open';
+        if (message.pushName) updateFields.push_name = message.pushName;
+        if (Object.keys(updateFields).length > 0) {
           await supabaseClient
             .from('wa_conversations')
-            .update({ push_name: message.pushName })
+            .update(updateFields)
             .eq('id', existingConversation.id);
         }
       } else {
@@ -328,7 +331,7 @@ Deno.serve(async (req) => {
       // Update conversation last_message_at
       await supabaseClient
         .from('wa_conversations')
-        .update({ last_message_at: new Date().toISOString() })
+        .update({ last_message_at: whatsappTimestamp })
         .eq('id', conversation.id);
     }
 

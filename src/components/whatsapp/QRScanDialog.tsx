@@ -30,8 +30,7 @@ export function QRScanDialog({ numberId, open, onOpenChange, onSuccess }: QRScan
     if (open && numberId) {
       setConnected(false);
       setQrCode(null);
-      fetchQR();
-      startPolling();
+      fetchQR().then(() => startPolling());
     }
     return () => stopPolling();
   }, [open, numberId]); // eslint-disable-line react-hooks/exhaustive-deps
