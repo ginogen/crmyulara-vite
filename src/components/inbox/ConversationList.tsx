@@ -13,17 +13,18 @@ interface ConversationListProps {
 }
 
 export function ConversationList({ selectedId, onSelect }: ConversationListProps) {
-  const { currentOrganization } = useAuth();
+  const { currentOrganization, user, userRole } = useAuth();
   const [conversations, setConversations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const supabase = createClient();
+  const isInboxAdmin = userRole === 'super_admin' || userRole === 'org_admin';
 
   const fetchConversations = async () => {
-    if (!currentOrganization?.id) return;
+    if (!currentOrganization?.id || !user?.id || !userRole) return;
     setLoading(true);
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('wa_conversations')
       .select(`
         *,
@@ -36,6 +37,12 @@ export function ConversationList({ selectedId, onSelect }: ConversationListProps
       .order('last_message_at', { ascending: false, nullsFirst: false })
       .limit(100);
 
+    if (!isInboxAdmin) {
+      query = query.eq('assigned_to', user.id);
+    }
+
+    const { data, error } = await query;
+
     if (!error && data) {
       setConversations(data);
     }
@@ -46,7 +53,7 @@ export function ConversationList({ selectedId, onSelect }: ConversationListProps
     fetchConversations();
 
     // Realtime subscription
-    if (!currentOrganization?.id) return;
+    if (!currentOrganization?.id || !user?.id || !userRole) return;
 
     const channel = supabase
       .channel('wa_conversations_list')
@@ -56,7 +63,9 @@ export function ConversationList({ selectedId, onSelect }: ConversationListProps
           event: '*',
           schema: 'public',
           table: 'wa_conversations',
-          filter: `organization_id=eq.${currentOrganization.id}`,
+          filter: isInboxAdmin
+            ? `organization_id=eq.${currentOrganization.id}`
+            : `assigned_to=eq.${user.id}`,
         },
         () => fetchConversations()
       )
@@ -70,7 +79,7 @@ export function ConversationList({ selectedId, onSelect }: ConversationListProps
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentOrganization?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentOrganization?.id, isInboxAdmin, user?.id, userRole]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getDisplayName = (conv: any) =>
     conv.contact?.full_name || conv.push_name || conv.contact?.phone || conv.phone_number || 'Desconocido';

@@ -15,7 +15,7 @@ interface ChatWindowProps {
 }
 
 export function ChatWindow({ conversationId }: ChatWindowProps) {
-  const { user } = useAuth();
+  const { currentOrganization, user, userRole } = useAuth();
   const [messages, setMessages] = useState<any[]>([]);
   const [conversation, setConversation] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -25,17 +25,26 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const supabase = createClient();
+  const isInboxAdmin = userRole === 'super_admin' || userRole === 'org_admin';
 
   const fetchConversation = async () => {
-    const { data } = await supabase
+    if (!currentOrganization?.id || !user?.id || !userRole) return;
+
+    let query = supabase
       .from('wa_conversations')
       .select(`
         *,
         contact:contacts(id, full_name, phone),
-        whatsapp_number:whatsapp_numbers(id, display_name, phone_number, api_key)
+        whatsapp_number:whatsapp_numbers(id, display_name, phone_number)
       `)
       .eq('id', conversationId)
-      .single();
+      .eq('organization_id', currentOrganization.id);
+
+    if (!isInboxAdmin) {
+      query = query.eq('assigned_to', user.id);
+    }
+
+    const { data } = await query.single();
     setConversation(data);
   };
 
@@ -56,6 +65,7 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
   };
 
   const fetchMessages = async () => {
+    if (!conversationId) return;
     setLoading(true);
     const { data, error } = await supabase
       .from('wa_messages')
@@ -69,7 +79,7 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
   };
 
   useEffect(() => {
-    if (!conversationId) return;
+    if (!conversationId || !currentOrganization?.id || !user?.id || !userRole) return;
     fetchConversation();
     fetchMessages();
 
@@ -116,7 +126,7 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversationId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [conversationId, currentOrganization?.id, user?.id, userRole]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });

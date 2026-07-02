@@ -14,7 +14,7 @@ interface ContactInfoPanelProps {
 }
 
 export function ContactInfoPanel({ conversationId }: ContactInfoPanelProps) {
-  const { currentOrganization } = useAuth();
+  const { currentOrganization, user, userRole } = useAuth();
   const [conversation, setConversation] = useState<any>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -29,23 +29,32 @@ export function ContactInfoPanel({ conversationId }: ContactInfoPanelProps) {
   });
   const navigate = useNavigate();
   const supabase = createClient();
+  const isInboxAdmin = userRole === 'super_admin' || userRole === 'org_admin';
 
   const fetchConversation = async () => {
-    const { data } = await supabase
+    if (!currentOrganization?.id || !user?.id || !userRole) return;
+
+    let query = supabase
       .from('wa_conversations')
       .select(`
         *,
         contact:contacts(id, full_name, phone, email, city, province, tag)
       `)
       .eq('id', conversationId)
-      .single();
+      .eq('organization_id', currentOrganization.id);
+
+    if (!isInboxAdmin) {
+      query = query.eq('assigned_to', user.id);
+    }
+
+    const { data } = await query.single();
     setConversation(data);
 
     // If no contact linked, check if one exists with this phone
     if (data && !data.contact && data.phone_number && currentOrganization?.id) {
       const { data: found } = await supabase
         .from('contacts')
-        .select('id, full_name, phone')
+        .select('id, full_name, phone, assigned_to')
         .eq('phone', data.phone_number)
         .eq('organization_id', currentOrganization.id)
         .maybeSingle();
@@ -59,7 +68,7 @@ export function ContactInfoPanel({ conversationId }: ContactInfoPanelProps) {
     if (!conversationId) return;
     setShowForm(false);
     fetchConversation();
-  }, [conversationId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [conversationId, currentOrganization?.id, isInboxAdmin, user?.id, userRole]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const contact = conversation?.contact;
 
@@ -80,7 +89,10 @@ export function ContactInfoPanel({ conversationId }: ContactInfoPanelProps) {
     setSaving(true);
     const { error } = await supabase
       .from('wa_conversations')
-      .update({ contact_id: existingContact.id })
+      .update({
+        contact_id: existingContact.id,
+        assigned_to: conversation?.assigned_to || existingContact.assigned_to || user?.id || null,
+      })
       .eq('id', conversationId);
 
     if (error) {
@@ -111,6 +123,7 @@ export function ContactInfoPanel({ conversationId }: ContactInfoPanelProps) {
         tag: formData.tag.trim() || null,
         organization_id: currentOrganization.id,
         branch_id: conversation?.branch_id || null,
+        assigned_to: conversation?.assigned_to || user?.id || null,
       })
       .select('id')
       .single();

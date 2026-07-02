@@ -42,6 +42,62 @@ Deno.serve(async (req) => {
       media_url,
     } = await req.json();
 
+    if (!conversation_id) {
+      return new Response(JSON.stringify({ error: 'conversation_id is required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { data: currentUser, error: currentUserError } = await supabaseClient
+      .from('users')
+      .select('role, organization_id')
+      .eq('id', user.id)
+      .single();
+
+    if (currentUserError || !currentUser) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const isInboxAdmin = currentUser.role === 'super_admin' || currentUser.role === 'org_admin';
+
+    const { data: conversation, error: conversationError } = await supabaseClient
+      .from('wa_conversations')
+      .select('id, organization_id, assigned_to, whatsapp_number_id')
+      .eq('id', conversation_id)
+      .single();
+
+    if (conversationError || !conversation) {
+      return new Response(JSON.stringify({ error: 'Conversation not found' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (currentUser.role !== 'super_admin' && conversation.organization_id !== currentUser.organization_id) {
+      return new Response(JSON.stringify({ error: 'Forbidden' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!isInboxAdmin && conversation.assigned_to !== user.id) {
+      return new Response(JSON.stringify({ error: 'No tienes acceso a esta conversación' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (conversation.whatsapp_number_id !== whatsapp_number_id) {
+      return new Response(JSON.stringify({ error: 'Conversation does not match WhatsApp number' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const base64ToBlob = (base64: string, mimeType: string): Blob => {
       const byteCharacters = atob(base64);
       const byteNumbers = new Array(byteCharacters.length);

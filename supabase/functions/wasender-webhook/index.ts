@@ -414,7 +414,7 @@ Deno.serve(async (req) => {
       // Find whatsapp_number by api_key (Wasender sends sessionId as api_key)
       const { data: whatsappNumber, error: whatsappError } = await supabaseClient
         .from('whatsapp_numbers')
-        .select('id, phone_number, session_id, api_key, organization_id, branch_id, bot_enabled')
+        .select('id, phone_number, session_id, api_key, organization_id, branch_id, bot_enabled, created_by')
         .eq('api_key', payload.sessionId?.toString())
         .maybeSingle();
 
@@ -523,7 +523,7 @@ Deno.serve(async (req) => {
       // Check if a contact already exists for this phone (to link if so)
       const { data: existingContact } = await supabaseClient
         .from('contacts')
-        .select('id')
+        .select('id, assigned_to')
         .eq('phone', cleanPhone)
         .eq('organization_id', whatsappNumber.organization_id)
         .maybeSingle();
@@ -532,7 +532,7 @@ Deno.serve(async (req) => {
       let conversation: { id: string; bot_active: boolean; is_from_ad: boolean; bot_turn_count: number } | null = null;
       const { data: existingConversation } = await supabaseClient
         .from('wa_conversations')
-        .select('id, bot_active, is_from_ad, bot_turn_count')
+        .select('id, bot_active, is_from_ad, bot_turn_count, assigned_to')
         .eq('phone_number', cleanPhone)
         .eq('whatsapp_number_id', whatsappNumber.id)
         .maybeSingle();
@@ -543,7 +543,14 @@ Deno.serve(async (req) => {
         if (existingContact) {
           await supabaseClient
             .from('wa_conversations')
-            .update({ contact_id: existingContact.id })
+            .update({
+              contact_id: existingContact.id,
+              assigned_to:
+                existingConversation.assigned_to ||
+                existingContact.assigned_to ||
+                whatsappNumber.created_by ||
+                null,
+            })
             .eq('id', existingConversation.id)
             .is('contact_id', null);
         }
@@ -567,6 +574,7 @@ Deno.serve(async (req) => {
             whatsapp_number_id: whatsappNumber.id,
             organization_id: whatsappNumber.organization_id,
             branch_id: whatsappNumber.branch_id,
+            assigned_to: existingContact?.assigned_to || whatsappNumber.created_by || null,
             status: 'open',
             priority: 'medium',
             bot_active: whatsappNumber.bot_enabled ? true : false,
