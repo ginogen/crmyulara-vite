@@ -17,7 +17,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { WhatsAppNumberDialog } from '@/components/whatsapp/WhatsAppNumberDialog';
 import { QRScanDialog } from '@/components/whatsapp/QRScanDialog';
-import { Plus, Phone, CheckCircle2, XCircle, QrCode, Loader2, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Phone, CheckCircle2, XCircle, QrCode, Loader2, Trash2, RefreshCw, Bot } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -31,6 +32,7 @@ export default function WhatsAppNumbersPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [numberToDelete, setNumberToDelete] = useState<any>(null);
   const [deleting, setDeleting] = useState(false);
+  const [togglingBot, setTogglingBot] = useState<string | null>(null);
   const supabase = createClient();
   const queryClient = useQueryClient();
 
@@ -48,6 +50,24 @@ export default function WhatsAppNumbersPage() {
     },
     enabled: !!currentOrganization?.id,
   });
+
+  const handleToggleBot = async (number: any, enabled: boolean, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setTogglingBot(number.id);
+    try {
+      const { error } = await supabase
+        .from('whatsapp_numbers')
+        .update({ bot_enabled: enabled })
+        .eq('id', number.id);
+      if (error) throw error;
+      await refetch();
+      toast.success(enabled ? 'Bot de IA activado' : 'Bot de IA desactivado');
+    } catch {
+      toast.error('Error al cambiar el estado del bot');
+    } finally {
+      setTogglingBot(null);
+    }
+  };
 
   const handleCheckStatus = async (number: any, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -189,6 +209,24 @@ export default function WhatsAppNumbersPage() {
                     Conectado: {format(new Date(number.last_connected_at), 'PPp', { locale: es })}
                   </p>
                 )}
+                <div
+                  className="flex items-center justify-between py-2 px-3 rounded-md border bg-muted/30 cursor-default"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center gap-2">
+                    <Bot className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm">Bot de IA</span>
+                    {number.bot_enabled && (
+                      <Badge className="bg-violet-500 hover:bg-violet-600 text-xs px-1.5 py-0">Activo</Badge>
+                    )}
+                  </div>
+                  <Switch
+                    checked={!!number.bot_enabled}
+                    disabled={togglingBot === number.id}
+                    onCheckedChange={(checked) => handleToggleBot(number, checked, { stopPropagation: () => {} } as any)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
                 <div className="flex flex-col gap-2 pt-1">
                   {!number.is_connected && (
                     <Button

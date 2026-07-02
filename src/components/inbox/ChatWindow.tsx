@@ -3,7 +3,8 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Loader2, Image, X } from 'lucide-react';
+import { Send, Loader2, Image, Bot, UserCheck } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { ChatMessage } from './ChatMessage';
 import { VoiceRecorder } from './VoiceRecorder';
@@ -20,6 +21,7 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
   const [loading, setLoading] = useState(true);
   const [messageText, setMessageText] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [takingOver, setTakingOver] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const supabase = createClient();
@@ -35,6 +37,22 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
       .eq('id', conversationId)
       .single();
     setConversation(data);
+  };
+
+  const handleTakeOver = async () => {
+    setTakingOver(true);
+    try {
+      await supabase
+        .from('wa_conversations')
+        .update({ bot_active: false })
+        .eq('id', conversationId);
+      setConversation((prev: any) => prev ? { ...prev, bot_active: false } : prev);
+      toast.success('Conversación tomada por el asesor');
+    } catch {
+      toast.error('Error al tomar la conversación');
+    } finally {
+      setTakingOver(false);
+    }
   };
 
   const fetchMessages = async () => {
@@ -79,6 +97,18 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
               prev.map((m: any) => (m.id === payload.new.id ? { ...m, ...payload.new } : m))
             );
           }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'wa_conversations',
+          filter: `id=eq.${conversationId}`,
+        },
+        (payload: any) => {
+          setConversation((prev: any) => prev ? { ...prev, ...payload.new } : prev);
         }
       )
       .subscribe();
@@ -198,17 +228,43 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b bg-background">
-        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
           <span className="text-xs font-semibold text-primary">
             {(conversation?.contact?.full_name || conversation?.push_name || conversation?.phone_number || '?')[0].toUpperCase()}
           </span>
         </div>
-        <div>
-          <p className="text-sm font-medium">
-            {conversation?.contact?.full_name || conversation?.push_name || conversation?.phone_number || 'Desconocido'}
-          </p>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium truncate">
+              {conversation?.contact?.full_name || conversation?.push_name || conversation?.phone_number || 'Desconocido'}
+            </p>
+            {conversation?.bot_active && (
+              <Badge className="bg-violet-500 hover:bg-violet-500 text-xs px-1.5 py-0 flex items-center gap-1 flex-shrink-0">
+                <Bot className="w-3 h-3" />
+                Bot activo
+              </Badge>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground">{conversation?.contact?.phone || conversation?.phone_number}</p>
         </div>
+        {conversation?.bot_active && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-shrink-0 h-8 text-xs"
+            onClick={handleTakeOver}
+            disabled={takingOver}
+          >
+            {takingOver ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <>
+                <UserCheck className="w-3 h-3 mr-1" />
+                Tomar conversación
+              </>
+            )}
+          </Button>
+        )}
       </div>
 
       {/* Messages */}
