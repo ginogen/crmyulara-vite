@@ -1,8 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Search, MessageCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -12,6 +20,9 @@ interface ConversationListProps {
   onSelect: (id: string) => void;
 }
 
+const ALL_NUMBERS = 'all';
+const numberStorageKey = (orgId: string) => `inbox:number:${orgId}`;
+
 export function ConversationList({ selectedId, onSelect }: ConversationListProps) {
   const { currentOrganization, user, userRole } = useAuth();
   const [conversations, setConversations] = useState<any[]>([]);
@@ -19,6 +30,21 @@ export function ConversationList({ selectedId, onSelect }: ConversationListProps
   const [search, setSearch] = useState('');
   const supabase = createClient();
   const isInboxAdmin = userRole === 'super_admin' || userRole === 'org_admin';
+  const orgId = currentOrganization?.id;
+
+  const [selectedNumberId, setSelectedNumberId] = useState<string>(() =>
+    orgId ? localStorage.getItem(numberStorageKey(orgId)) ?? ALL_NUMBERS : ALL_NUMBERS
+  );
+  // Solo podamos la seleccion contra un fetch ya asentado: durante uno en vuelo
+  // `conversations` todavia tiene los datos de la organizacion anterior.
+  const hasFetchedRef = useRef(false);
+
+  const selectNumber = (value: string) => {
+    setSelectedNumberId(value);
+    if (!orgId) return;
+    if (value === ALL_NUMBERS) localStorage.removeItem(numberStorageKey(orgId));
+    else localStorage.setItem(numberStorageKey(orgId), value);
+  };
 
   const fetchConversations = async () => {
     if (!currentOrganization?.id || !user?.id || !userRole) return;
@@ -29,7 +55,7 @@ export function ConversationList({ selectedId, onSelect }: ConversationListProps
       .select(`
         *,
         contact:contacts(id, full_name, phone),
-        whatsapp_number:whatsapp_numbers(display_name, phone_number),
+        whatsapp_number:whatsapp_numbers(id, display_name, phone_number),
         wa_messages(content, created_at, direction, delivery_status, message_type)
       `)
       .eq('organization_id', currentOrganization.id)
@@ -45,9 +71,19 @@ export function ConversationList({ selectedId, onSelect }: ConversationListProps
 
     if (!error && data) {
       setConversations(data);
+      hasFetchedRef.current = true;
     }
     setLoading(false);
   };
+
+  // El inicializador lazy de useState corre una sola vez, asi que al cambiar de
+  // organizacion hay que releer la preferencia guardada de la nueva.
+  useEffect(() => {
+    hasFetchedRef.current = false;
+    setSelectedNumberId(
+      orgId ? localStorage.getItem(numberStorageKey(orgId)) ?? ALL_NUMBERS : ALL_NUMBERS
+    );
+  }, [orgId]);
 
   useEffect(() => {
     fetchConversations();
@@ -87,7 +123,36 @@ export function ConversationList({ selectedId, onSelect }: ConversationListProps
   const getDisplayPhone = (conv: any) =>
     conv.contact?.phone || conv.phone_number || '';
 
+  // Derivado de `conversations` (no de `filtered`) para que los conteos no dependan
+  // del buscador, y sin query extra: los numeros salen del embed que ya traemos.
+  const derivedNumbers = useMemo(() => {
+    const byId = new Map<string, { id: string; display_name: string; count: number }>();
+    for (const conv of conversations) {
+      const num = conv.whatsapp_number;
+      if (!num?.id) continue;
+      const existing = byId.get(num.id);
+      if (existing) existing.count += 1;
+      else byId.set(num.id, { id: num.id, display_name: num.display_name, count: 1 });
+    }
+    return [...byId.values()].sort((a, b) => b.count - a.count);
+  }, [conversations]);
+
+  // Si se cierra la ultima conversacion del numero filtrado, volver a "Todos".
+  useEffect(() => {
+    if (!hasFetchedRef.current) return;
+    if (selectedNumberId === ALL_NUMBERS || derivedNumbers.length === 0) return;
+    if (derivedNumbers.some((n) => n.id === selectedNumberId)) return;
+    selectNumber(ALL_NUMBERS);
+  }, [derivedNumbers, selectedNumberId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Se mantiene montado mientras haya un filtro activo, aunque queden menos de 2
+  // numeros: si no, el filtro seguiria aplicandose sin control para limpiarlo.
+  const showNumberSelector = derivedNumbers.length >= 2 || selectedNumberId !== ALL_NUMBERS;
+
   const filtered = conversations.filter((conv) => {
+    if (selectedNumberId !== ALL_NUMBERS && conv.whatsapp_number_id !== selectedNumberId) {
+      return false;
+    }
     if (!search.trim()) return true;
     const s = search.toLowerCase();
     const name = getDisplayName(conv).toLowerCase();
@@ -103,7 +168,9 @@ export function ConversationList({ selectedId, onSelect }: ConversationListProps
     )[0];
   };
 
-  if (loading) {
+  // Solo en la carga inicial: `fetchConversations` tambien corre en cada evento de
+  // realtime, y desmontar el header ahi cierra el dropdown y roba el foco al buscador.
+  if (loading && conversations.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
         Cargando conversaciones...
@@ -113,8 +180,26 @@ export function ConversationList({ selectedId, onSelect }: ConversationListProps
 
   return (
     <div className="flex flex-col h-full">
-      {/* Search */}
-      <div className="p-3 border-b">
+      {/* Filters */}
+      <div className="p-3 border-b space-y-2">
+        {showNumberSelector && (
+          <Select value={selectedNumberId} onValueChange={selectNumber}>
+            <SelectTrigger className="h-9 text-sm [&>span]:truncate">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_NUMBERS}>
+                Todos los números ({conversations.length})
+              </SelectItem>
+              <SelectSeparator />
+              {derivedNumbers.map((num) => (
+                <SelectItem key={num.id} value={num.id}>
+                  {num.display_name} ({num.count})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -132,7 +217,9 @@ export function ConversationList({ selectedId, onSelect }: ConversationListProps
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2 p-8 text-center">
             <MessageCircle className="w-10 h-10 opacity-30" />
             <p className="text-sm">
-              {search ? 'Sin resultados' : 'No hay conversaciones abiertas'}
+              {search || selectedNumberId !== ALL_NUMBERS
+                ? 'Sin resultados'
+                : 'No hay conversaciones abiertas'}
             </p>
           </div>
         ) : (
